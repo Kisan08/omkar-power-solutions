@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+/* @variant dark (&:is(.dark *)); */
+
+html.dark {
+  color-scheme: dark;
+}
