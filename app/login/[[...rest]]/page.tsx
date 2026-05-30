@@ -18,6 +18,10 @@ export default function LoginPage() {
     }, 1500);
   };
 
+  function signIn(arg0: string, arg1: { callbackUrl: string; }): void {
+    throw new Error("Function not implemented.");
+  }
+
   return (
     <div className="min-h-screen bg-gray-950 relative flex items-center justify-center overflow-hidden">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -26,7 +30,7 @@ export default function LoginPage() {
         <div className="absolute top-[40%] left-[40%] w-64 h-64 bg-cyan-600/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: "2s" }} />
       </div>
 
-      <div className="absolute inset-0 pointer-events-none">
+      <div className="absolute inset-0 pointer-events-none" suppressHydrationWarning>
         {[...Array(40)].map((_, i) => (
           <div
             key={i}

@@ -32,7 +32,7 @@ export default function SignupPage() {
         <div className="absolute top-[30%] right-[30%] w-64 h-64 bg-cyan-600/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: "2s" }} />
       </div>
 
-      <div className="absolute inset-0 pointer-events-none">
+      <div className="absolute inset-0 pointer-events-none" suppressHydrationWarning>
         {[...Array(40)].map((_, i) => (
           <div
             key={i}
