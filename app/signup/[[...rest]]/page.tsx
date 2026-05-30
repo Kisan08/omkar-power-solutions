@@ -20,6 +20,10 @@ export default function SignupPage() {
     }, 1500);
   };
 
+  function signIn(arg0: string, arg1: { callbackUrl: string; }): void {
+    throw new Error("Function not implemented.");
+  }
+
   return (
     <div className="min-h-screen bg-gray-950 relative flex items-center justify-center overflow-hidden">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -190,6 +194,7 @@ export default function SignupPage() {
 
               <button
                 type="button"
+                onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
                 className="w-full bg-gray-800 hover:bg-gray-700 border border-gray-700 text-white text-sm font-medium py-2.5 rounded-xl flex items-center justify-center gap-2 transition-colors"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
