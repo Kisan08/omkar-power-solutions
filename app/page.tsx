@@ -3,7 +3,6 @@ import Hero from "@/components/Hero";
 import Features from "@/components/Features";
 import Steps from "@/components/Steps";
 import Footer from "@/components/Footer";
-import ChatBubble from "@/components/ChatBubble";
 import ParticleBackground from "@/components/ParticleBackground";
 import ScrollReveal from "@/components/ScrollReveal";
 import AnimatedCounter from "@/components/AnimatedCounter";
@@ -80,7 +79,6 @@ export default function Home() {
       <Footer />
       <ChatBubble />
       <Footer />
-      <ChatBubble />
       <WhatsAppButton />
     </main>
   );
