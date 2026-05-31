@@ -3,6 +3,7 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import StarParticles from "@/components/StarParticles";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -17,7 +18,7 @@ export default function LoginPage() {
       router.push("/");
     }, 1500);
   };
-  
+
   function signIn(arg0: string, arg1: { callbackUrl: string; }): void {
     throw new Error("Function not implemented.");
   }
@@ -30,26 +31,7 @@ export default function LoginPage() {
         <div className="absolute top-[40%] left-[40%] w-64 h-64 bg-cyan-600/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: "2s" }} />
       </div>
 
-      <div className="absolute inset-0 pointer-events-none" suppressHydrationWarning>
-        {[...Array(40)].map((_, i) => (
-          <div
-            key={i}
-            className="absolute rounded-full bg-white"
-            style={{
-              // eslint-disable-next-line react-hooks/purity
-              width: Math.random() * 2 + 1,
-              // eslint-disable-next-line react-hooks/purity
-              height: Math.random() * 2 + 1,
-              // eslint-disable-next-line react-hooks/purity
-              top: `${Math.random() * 100}%`,
-              // eslint-disable-next-line react-hooks/purity
-              left: `${Math.random() * 100}%`,
-              // eslint-disable-next-line react-hooks/purity
-              opacity: Math.random() * 0.5 + 0.1,
-            }}
-          />
-        ))}
-      </div>
+      <StarParticles />
 
       <div className="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-blue-500/50 to-transparent" />
 
