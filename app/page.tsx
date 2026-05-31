@@ -8,6 +8,7 @@ import ParticleBackground from "@/components/ParticleBackground";
 import ScrollReveal from "@/components/ScrollReveal";
 import AnimatedCounter from "@/components/AnimatedCounter";
 import Link from "next/link";
+import WhatsAppButton from "@/components/WhatsAppButton";
 
 export default function Home() {
   return (
@@ -78,6 +79,9 @@ export default function Home() {
 
       <Footer />
       <ChatBubble />
+      <Footer />
+      <ChatBubble />
+      <WhatsAppButton />
     </main>
   );
 }
