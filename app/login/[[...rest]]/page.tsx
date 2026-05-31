@@ -14,10 +14,10 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setTimeout(() => {
-      router.push("/dashboard");
+      router.push("/");
     }, 1500);
   };
-
+  
   function signIn(arg0: string, arg1: { callbackUrl: string; }): void {
     throw new Error("Function not implemented.");
   }
