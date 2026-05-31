@@ -77,7 +77,6 @@ export default function Home() {
       </section>
 
       <Footer />
-      <ChatBubble />
       <Footer />
       <WhatsAppButton />
     </main>
