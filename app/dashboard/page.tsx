@@ -1,6 +1,5 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { useUser, UserButton } from "@clerk/nextjs";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -12,7 +11,7 @@ const stats = [
 ];
 
 export default function DashboardPage() {
-  const { user } = useUser();
+  const user = { firstName: "Omkar" };
   const [messages, setMessages] = useState([
     { role: "assistant", text: "Hi! I'm your AI solar advisor. Ask me anything about your system, savings, or maintenance." },
   ]);
@@ -216,7 +215,6 @@ export default function DashboardPage() {
           >
             🌙
           </button>
-          <UserButton />
         </div>
       </nav>
 

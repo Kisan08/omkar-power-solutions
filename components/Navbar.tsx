@@ -2,13 +2,12 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { UserButton, useAuth } from "@clerk/nextjs";
 
 export default function Navbar() {
   const [dark, setDark] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const { isSignedIn } = useAuth();
+  const isSignedIn = false;
 
   useEffect(() => {
     const saved = localStorage.getItem("theme");
@@ -127,7 +126,6 @@ export default function Navbar() {
               >
                 Dashboard
               </Link>
-              <UserButton />
             </>
           )}
 
