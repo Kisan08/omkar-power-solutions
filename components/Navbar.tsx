@@ -76,10 +76,10 @@ export default function Navbar() {
 
         {/* Center Links */}
         <div className="hidden md:flex items-center gap-1">
-          {["Features", "How it works", "Pricing"].map((item) => (
+          {["Features", "How it works", "Pricing", "Get Quote"].map((item) => (
             <Link
               key={item}
-              href={`#${item.toLowerCase().replace(" ", "-")}`}
+              href={item === "Get Quote" ? "/quote" : `#${item.toLowerCase().replace(/ /g, "-")}`}
               className="relative px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors duration-200 group"
             >
               {item}
@@ -124,7 +124,7 @@ export default function Navbar() {
                 href="/dashboard"
                 className="hidden md:block text-sm font-medium text-gray-300 hover:text-white px-4 py-2 rounded-lg hover:bg-white/10 transition-all duration-200"
               >
-                Dashboard
+                Dashboard 
               </Link>
             </>
           )}
@@ -143,10 +143,10 @@ export default function Navbar() {
       {/* Mobile Menu */}
       {menuOpen && (
         <div className="md:hidden mt-2 bg-gray-900/95 backdrop-blur-xl border border-gray-700/50 rounded-2xl px-6 py-4 flex flex-col gap-3 shadow-2xl">
-          {["Features", "How it works", "Pricing"].map((item) => (
+          {["Features", "How it works", "Pricing", "Get Quote"].map((item) => (
             <Link
               key={item}
-              href={`#${item.toLowerCase().replace(" ", "-")}`}
+              href={item === "Get Quote" ? "/quote" : `#${item.toLowerCase().replace(/ /g, "-")}`}
               className="text-sm text-gray-400 hover:text-white transition-colors py-1"
               onClick={() => setMenuOpen(false)}
             >
