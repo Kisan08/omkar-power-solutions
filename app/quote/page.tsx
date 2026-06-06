@@ -593,11 +593,11 @@ export default function QuotePage() {
                   ["GST @ 12%", formatINR(calc.gst)],
                   ["Total incl. GST", formatINR(calc.total)],
                   ["Timeline", calc.timeline],
-                ].map(([label, val]) => (
-                  <>
-                    <div className="text-gray-400">{label}:</div>
-                    <div className={`font-medium ${label === "Total incl. GST" ? "text-yellow-400" : "text-white"}`}>{val}</div>
-                  </>
+               ].map(([label, val]) => (
+                <div key={String(label)} className="contents">
+                    <div className="text-gray-400">{String(label)}:</div>
+                    <div className={`font-medium ${label === "Total incl. GST" ? "text-yellow-400" : "text-white"}`}>{String(val)}</div>
+                </div>
                 ))}
               </div>
             </div>
