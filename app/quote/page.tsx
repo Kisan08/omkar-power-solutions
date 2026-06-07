@@ -51,21 +51,21 @@ function QuotationDocument({ form, calc }: { form: QuoteData; calc: ReturnType<t
 
       {/* ── HEADER ── */}
       {[1, 2, 3, 4, 5, 6].map((page) => null)}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12, paddingBottom: 10, borderBottom: `2px solid ${BLUE}` }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <img src="/logo.png" alt="OPS" style={{ width: 44, height: 44, objectFit: "contain" }} />
-          <div>
-            <div style={{ color: BLUE, fontWeight: "bold", fontSize: 15 }}>OMKAR POWER SOLUTIONS</div>
-            <div style={{ color: "#555", fontSize: 9 }}>Engineering • Procurement • Construction (EPC) – Solar Division</div>
-            <div style={{ color: "#555", fontSize: 9 }}>📞 8452035102 &nbsp;✉ omkarpowersolutions16@gmail.com</div>
-          </div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, paddingBottom: 10, borderBottom: `2px solid ${BLUE}`, flexWrap: "nowrap", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+            <img src="/logo.png" alt="OPS" style={{ width: 40, height: 40, objectFit: "contain", flexShrink: 0 }} />
+            <div style={{ minWidth: 0 }}>
+            <div style={{ color: BLUE, fontWeight: "bold", fontSize: 13, whiteSpace: "nowrap" }}>OMKAR POWER SOLUTIONS</div>
+            <div style={{ color: "#555", fontSize: 8 }}>Engineering • Procurement • Construction (EPC) – Solar Division</div>
+            <div style={{ color: "#555", fontSize: 8 }}>📞 8452035102 &nbsp;✉ omkarpowersolutions16@gmail.com</div>
+            </div>
         </div>
-        <div style={{ background: DARK_BLUE, color: "white", padding: "10px 18px", borderRadius: 6, textAlign: "center" }}>
-          <div style={{ fontSize: 8, letterSpacing: 1 }}>TECHNO-COMMERCIAL</div>
-          <div style={{ color: ACCENT, fontWeight: "bold", fontSize: 13 }}>PROPOSAL</div>
+        <div style={{ background: DARK_BLUE, color: "white", padding: "8px 12px", borderRadius: 6, textAlign: "center", flexShrink: 0 }}>
+            <div style={{ fontSize: 7, letterSpacing: 1 }}>TECHNO-COMMERCIAL</div>
+            <div style={{ color: ACCENT, fontWeight: "bold", fontSize: 11 }}>PROPOSAL</div>
         </div>
       </div>
-
+     
       {/* ── PREPARED FOR ── */}
       <div style={{ background: ACCENT, padding: "7px 14px", borderRadius: 4, marginBottom: 16, fontWeight: "bold", fontSize: 11 }}>
         PREPARED FOR: {form.clientName.toUpperCase() || "CLIENT NAME"} | {form.systemCapacity} kWp ROOFTOP SOLAR PV SYSTEM
@@ -462,7 +462,7 @@ export default function QuotePage() {
     }));
   };
 
-  const handleDownloadPDF = async () => {
+    const handleDownloadPDF = async () => {
     const html2canvas = (await import("html2canvas")).default;
     const jsPDF = (await import("jspdf")).default;
 
@@ -470,31 +470,28 @@ export default function QuotePage() {
     if (!element) return;
 
     const canvas = await html2canvas(element, {
-      scale: 2,
-      useCORS: true,
-      logging: false,
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        windowWidth: 800,
     });
 
     const imgData = canvas.toDataURL("image/png");
     const pdf = new jsPDF("p", "mm", "a4");
     const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    let heightLeft = pdfHeight;
-    let position = 0;
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pdfWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    const totalPages = Math.ceil(imgHeight / pdfHeight);
 
-    pdf.addImage(imgData, "PNG", 0, position, pdfWidth, pdfHeight);
-    heightLeft -= pageHeight;
-
-    while (heightLeft >= 0) {
-      position = heightLeft - pdfHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, "PNG", 0, position, pdfWidth, pdfHeight);
-      heightLeft -= pageHeight;
+    for (let page = 0; page < totalPages; page++) {
+        if (page > 0) pdf.addPage();
+        const yOffset = -(page * pdfHeight);
+        pdf.addImage(imgData, "PNG", 0, yOffset, imgWidth, imgHeight);
     }
 
     pdf.save(`Proposal for ${form.clientName || "Client"} ${form.systemCapacity} KW.pdf`);
-  };
+    };
 
   return (
     <div className="min-h-screen bg-gray-950">
