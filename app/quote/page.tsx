@@ -515,19 +515,19 @@ export default function QuotePage() {
             <span className="text-white font-medium">OPS — Quotation Generator</span>
           </div>
         </div>
-        <button
+        {/* <button
           onClick={handleDownloadPDF}
           className="flex items-center gap-2 text-sm font-medium bg-green-600 hover:bg-green-500 text-white px-5 py-2 rounded-xl transition-colors"
         >
           ⬇ Download PDF
-        </button>
+        </button> */}
       </nav>
 
       <div className="max-w-7xl mx-auto px-6 py-8 grid grid-cols-1 md:grid-cols-2 gap-8">
 
         {/* LEFT — Form */}
         <div
-          className="rounded-2xl p-6 h-fit sticky top-6"
+          className="rounded-2xl p-6 h-fit md:sticky md:top-6"
           style={{
             background: "rgba(255,255,255,0.03)",
             border: "1px solid rgba(255,255,255,0.08)",
@@ -612,7 +612,7 @@ export default function QuotePage() {
         </div>
 
         {/* RIGHT — Preview */}
-        <div className="overflow-auto rounded-2xl border border-gray-800" style={{ maxHeight: "90vh" }}>
+        <div className="hidden md:block overflow-auto rounded-2xl border border-gray-800" style={{ maxHeight: "90vh" }}>
           <QuotationDocument form={form} calc={calc} />
         </div>
       </div>
