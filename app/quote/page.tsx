@@ -538,16 +538,18 @@ export default function QuotePage() {
           <p className="text-xs text-gray-500 mb-6">All calculations are automatic</p>
 
           <div className="flex flex-col gap-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs text-gray-400 mb-1.5">Proposal No.</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label className="block text-xs text-gray-400 mb-1.5">Proposal No.</label>
                 <input name="proposalNo" value={form.proposalNo} onChange={handleChange}
                   className="w-full px-4 py-2.5 text-sm rounded-xl bg-gray-800 border border-gray-700 text-white outline-none focus:border-blue-500" />
               </div>
               <div>
                 <label className="block text-xs text-gray-400 mb-1.5">Date</label>
                 <input type="date" name="date" value={form.date} onChange={handleChange}
-                  className="w-full px-4 py-2.5 text-sm rounded-xl bg-gray-800 border border-gray-700 text-white outline-none focus:border-blue-500" />
+                    className="w-full px-2 py-2.5 text-xs rounded-xl bg-gray-800 border border-gray-700 text-white outline-none focus:border-blue-500" 
+                    style={{ maxWidth: "100%", boxSizing: "border-box" }}
+                />
               </div>
             </div>
 
