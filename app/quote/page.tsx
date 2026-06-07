@@ -602,19 +602,39 @@ export default function QuotePage() {
               </div>
             </div>
 
-            <button
-              onClick={handleDownloadPDF}
-              className="w-full bg-green-600 hover:bg-green-500 text-white text-sm font-medium py-3 rounded-xl transition-colors"
-            >
-              ⬇ Download PDF
-            </button>
+            <div className="flex gap-2">
+                <button
+                    onClick={handleDownloadPDF}
+                    className="flex-1 bg-green-600 hover:bg-green-500 text-white text-sm font-medium py-3 rounded-xl transition-colors"
+                >
+                    ⬇ Download PDF
+                </button>
+                <button
+                    onClick={() => window.print()}
+                    className="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium py-3 rounded-xl transition-colors"
+                >
+                    🖨 Print
+                </button>
+            </div>
           </div>
         </div>
 
         {/* RIGHT — Preview */}
-        <div className="hidden md:block overflow-auto rounded-2xl border border-gray-800" style={{ maxHeight: "90vh" }}>
+        <div className="overflow-auto rounded-2xl border border-gray-800" style={{ maxHeight: "90vh" }}>
           <QuotationDocument form={form} calc={calc} />
         </div>
+        <style>{`
+            @media print {
+                body * { visibility: hidden; }
+                #quotation-document, #quotation-document * { visibility: visible; }
+                #quotation-document {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                }
+            }
+        `}</style>
       </div>
     </div>
   );
