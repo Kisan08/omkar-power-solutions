@@ -1,9 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useState, type ChangeEvent, type ReactNode, type CSSProperties } from "react";
 import Image from "next/image";
 import Link from "next/link";
 
-interface QuoteData {
+/* ─── Types ─── */
+interface QuoteForm {
   proposalNo: string;
   date: string;
   validUntil: string;
@@ -11,630 +12,813 @@ interface QuoteData {
   siteAddress: string;
   contactPerson: string;
   systemCapacity: number;
-  ratePerWp: number;
+  ratePerKw: number;
 }
 
-function calculateQuote(data: QuoteData) {
-  const wp = data.systemCapacity * 1000;
-  const panels = Math.ceil(wp / 580);
-  const inverterKw = data.systemCapacity;
-  const estGeneration = Math.round(1332 * data.systemCapacity);
-  const exGST = wp * data.ratePerWp;
-  const gst = exGST * 0.12;
-  const total = exGST + gst;
-  const t1 = total * 0.30;
-  const t2 = total * 0.40;
-  const t3 = total * 0.20;
-  const t4 = total * 0.10;
-  const timeline = data.systemCapacity >= 75 ? "100 days from PO & Advance" : "60-70 days from PO & Advance";
-  return { wp, panels, inverterKw, estGeneration, exGST, gst, total, t1, t2, t3, t4, timeline };
+/* ─── Constants ─── */
+const GST_RATE = 0.089;
+const PANEL_WP = 580;
+const YIELD_KWH = 1332;
+const NAVY        = "#0F1E3D";
+const BLUE        = "#1E88E5";
+const ACCENT      = "#F5A623";
+const LIGHT       = "#E8F1FA";
+const GREEN_DARK  = "#16A34A";
+const GREEN_LIGHT = "#DCFCE7";
+const RED_DARK    = "#DC2626";
+const RED_LIGHT   = "#FEE2E2";
+
+/* ─── Helpers ─── */
+const pad = (n: number) => String(n).padStart(2, "0");
+const inr = (n: number) => `Rs. ${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+const fmtDate = (s: string) => {
+  if (!s) return "—";
+  const d = new Date(s);
+  return `${pad(d.getDate())} / ${pad(d.getMonth() + 1)} / ${d.getFullYear()}`;
+};
+
+function compute(f: QuoteForm) {
+  const wp     = f.systemCapacity * 1000;
+  const panels = Math.ceil(wp / PANEL_WP);
+  const instWp = panels * PANEL_WP;
+  const gen    = Math.round(YIELD_KWH * f.systemCapacity);
+  const net    = Math.round((f.systemCapacity * f.ratePerKw) / 500) * 500;
+  const exGst  = Math.round(net / (1 + GST_RATE));
+  const gst    = net - exGst;
+  return {
+    wp, panels, instWp, gen, exGst, gst, net,
+    t1: Math.round(net * 0.30),
+    t2: Math.round(net * 0.40),
+    t3: Math.round(net * 0.20),
+    t4: Math.round(net * 0.10),
+  };
 }
+type Calc = ReturnType<typeof compute>;
 
-function formatINR(amount: number) {
-  return `Rs. ${amount.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
-}
+/* ─── Base styles ─── */
+const BASE: CSSProperties = { padding: "7px 12px", border: "1px solid #d0d7e2", fontSize: 11.5 };
+const TH: CSSProperties   = { ...BASE, background: NAVY,  color: "white", fontWeight: 700, textAlign: "left" };
+const TD: CSSProperties   = { ...BASE };
+const LB: CSSProperties   = { ...BASE, background: LIGHT, fontWeight: 600, color: NAVY };
 
-function formatDate(dateStr: string) {
-  if (!dateStr) return "—";
-  const d = new Date(dateStr);
-  return `${String(d.getDate()).padStart(2, "0")} / ${String(d.getMonth() + 1).padStart(2, "0")} / ${d.getFullYear()}`;
-}
+/* ─── Shared components ─── */
 
-const DARK_BLUE = "#0D3260";
-const BLUE = "#1A4F8A";
-const ACCENT = "#F5A623";
-const LIGHT_BLUE = "#EEF2FF";
-
-function QuotationDocument({ form, calc }: { form: QuoteData; calc: ReturnType<typeof calculateQuote> }) {
+function NavBar({ title, sub }: { title: string; sub?: string }) {
   return (
-    <div id="quotation-document" style={{ fontFamily: "Calibri, Arial, sans-serif", fontSize: 10, color: "#222", background: "white", padding: 32, maxWidth: 800, margin: "0 auto" }}>
+    <div style={{
+      background: NAVY, color: "white",
+      padding: "7px 14px", marginTop: 14, marginBottom: 8,
+      borderLeft: `4px solid ${BLUE}`,
+      fontWeight: 700, fontSize: 12.5, letterSpacing: 0.4,
+    }}>
+      {title.toUpperCase()}
+      {sub && (
+        <span style={{
+          color: BLUE, fontWeight: 400, fontStyle: "italic",
+          marginLeft: 10, fontSize: 11, textTransform: "none",
+        }}>— {sub}</span>
+      )}
+    </div>
+  );
+}
 
-      {/* ── HEADER ── */}
-      {[1, 2, 3, 4, 5, 6].map((page) => null)}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12, paddingBottom: 10, borderBottom: `2px solid ${BLUE}`, flexWrap: "nowrap", gap: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
-            <img src="/logo.png" alt="OPS" style={{ width: 40, height: 40, objectFit: "contain", flexShrink: 0 }} />
-            <div style={{ minWidth: 0 }}>
-            <div style={{ color: BLUE, fontWeight: "bold", fontSize: 13, whiteSpace: "nowrap" }}>OMKAR POWER SOLUTIONS</div>
-            <div style={{ color: "#555", fontSize: 8 }}>Engineering • Procurement • Construction (EPC) – Solar Division</div>
-            <div style={{ color: "#555", fontSize: 8 }}>📞 8452035102 &nbsp;✉ omkarpowersolutions16@gmail.com</div>
-            </div>
+function BlueBar({ children }: { children: ReactNode }) {
+  return (
+    <div style={{
+      background: BLUE, color: "white",
+      padding: "6px 14px", marginTop: 10, marginBottom: 0,
+      fontWeight: 600, fontSize: 16,
+    }}>{children}</div>
+  );
+}
+
+function PageHeader() {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      paddingBottom: 10, borderBottom: `2px solid ${BLUE}`,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <img src="/logo.png" alt="OPS"
+          style={{ width: 46, height: 46, objectFit: "contain" }} />
+        <div>
+          <div style={{ color: NAVY, fontWeight: 700, fontSize: 14.5, letterSpacing: 0.4 }}>
+            OMKAR POWER SOLUTIONS
+          </div>
+          <div style={{ color: "#555", fontSize: 9.5, fontStyle: "italic", marginTop: 1 }}>
+            Engineering &nbsp;·&nbsp; Procurement &nbsp;·&nbsp; Construction (EPC) – Solar Division
+          </div>
+          <div style={{ color: "#555", fontSize: 9.5, marginTop: 2 }}>
+            📞 8452035102 &nbsp;·&nbsp; omkarpowersolutions16@gmail.com &nbsp;·&nbsp; GST: 27FAVPD3160C1ZE
+          </div>
         </div>
-        <div style={{ background: DARK_BLUE, color: "white", padding: "8px 12px", borderRadius: 6, textAlign: "center", flexShrink: 0 }}>
-            <div style={{ fontSize: 7, letterSpacing: 1 }}>TECHNO-COMMERCIAL</div>
-            <div style={{ color: ACCENT, fontWeight: "bold", fontSize: 11 }}>PROPOSAL</div>
-        </div>
       </div>
-     
-      {/* ── PREPARED FOR ── */}
-      <div style={{ background: ACCENT, padding: "7px 14px", borderRadius: 4, marginBottom: 16, fontWeight: "bold", fontSize: 11 }}>
-        PREPARED FOR: {form.clientName.toUpperCase() || "CLIENT NAME"} | {form.systemCapacity} kWp ROOFTOP SOLAR PV SYSTEM
+      <div style={{
+        background: NAVY, color: "white",
+        padding: "10px 16px", borderRadius: 3, textAlign: "center", minWidth: 110,
+      }}>
+        <div style={{ fontSize: 7.5, letterSpacing: 1.5 }}>TECHNO-COMMERCIAL</div>
+        <div style={{ color: ACCENT, fontWeight: 700, fontSize: 13, marginTop: 2 }}>PROPOSAL</div>
+      </div>
+    </div>
+  );
+}
+
+function PageFooter() {
+  return (
+    <div style={{
+      borderTop: "1px solid #ddd", paddingTop: 5, marginTop: "auto",
+      textAlign: "center", color: "#888", fontSize: 9,
+    }}>
+      Omkar Power Solutions &nbsp;·&nbsp; 8452035102 &nbsp;·&nbsp; omkarpowersolutions16@gmail.com &nbsp;·&nbsp; Confidential
+    </div>
+  );
+}
+
+function Page({ children }: { children: ReactNode }) {
+  return (
+    <div className="quote-page" style={{
+      fontFamily: "Calibri, Arial, sans-serif",
+      fontSize: 11.5, color: "#1a1a1a", background: "white",
+      padding: "26px 32px", width: 794, minHeight: 1123,
+      margin: "0 auto 18px", boxSizing: "border-box",
+      display: "flex", flexDirection: "column", pageBreakAfter: "always",
+    }}>
+      <PageHeader />
+      <div style={{ flex: 1, paddingTop: 4 }}>{children}</div>
+      <PageFooter />
+    </div>
+  );
+}
+
+/* ─── PAGE 1 — Our Story ─── */
+function P1() {
+  return (
+    <>
+      {/* Real cover image */}
+      <div style={{ marginTop: 10, marginBottom: 4 }}>
+        <img
+          src="/solar_cover.jpg"
+          alt="Omkar Power Solutions"
+          style={{ width: "100%", height: 175, objectFit: "cover", borderRadius: 3, display: "block" }}
+        />
       </div>
 
-      {/* ── SECTION 1 — OUR STORY ── */}
-      <SectionHeader title="SECTION 1 — OUR STORY" />
-      <div style={{ border: `1px solid #ddd`, borderRadius: 4, padding: "10px 14px", marginBottom: 10, background: "#FAFBFF" }}>
-        <p style={{ marginBottom: 6 }}>We are a professional Solar EPC company delivering high-quality, efficient, and reliable solar energy solutions across Maharashtra. We handle everything end-to-end — from engineering design and procurement of premium components to installation, commissioning, and long-term maintenance.</p>
-        <p>Our focus on quality workmanship, safety, and long-term performance ensures every project delivers maximum return on investment.</p>
+      <NavBar title="Our Story" sub="Who we are" />
+      <div style={{
+        background: LIGHT, padding: "11px 15px", borderRadius: 3,
+        fontSize: 11.5, lineHeight: 1.6, borderLeft: `3px solid ${BLUE}`,
+      }}>
+        <p style={{ marginBottom: 7 }}>
+          Omkar Power Solutions is a professional Solar EPC company delivering high-quality, efficient,
+          and reliable solar energy solutions across Maharashtra. We handle everything end-to-end —
+          engineering design, premium component procurement, installation, commissioning, and long-term
+          maintenance support.
+        </p>
+        <p>
+          Our focus on quality workmanship, safety, and long-term performance ensures every project
+          delivers maximum return on investment for our clients.
+        </p>
       </div>
 
-      {/* Services */}
-      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 10 }}>
-        <thead>
-          <tr style={{ background: DARK_BLUE, color: "white" }}>
-            <th colSpan={4} style={{ padding: "6px 10px", textAlign: "left", fontSize: 10 }}>OUR SERVICES</th>
-          </tr>
-          <tr style={{ background: "#f0f4ff" }}>
-            {["☀ On-Grid Solar", "🔋 Off-Grid / Hybrid", "🏭 C&I Projects", "🔧 O&M Services"].map(s => (
-              <th key={s} style={{ padding: "5px 8px", border: "1px solid #ddd", color: BLUE, fontWeight: "bold", fontSize: 9, textAlign: "left" }}>{s}</th>
-            ))}
-          </tr>
-        </thead>
+      <BlueBar>OUR SERVICES</BlueBar>
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <tbody>
           <tr>
-            <td style={{ padding: "5px 8px", border: "1px solid #ddd", fontSize: 9 }}>Grid-tied rooftop systems with net metering for societies, homes & offices.</td>
-            <td style={{ padding: "5px 8px", border: "1px solid #ddd", fontSize: 9 }}>Battery-backed systems for areas with power cuts or zero grid dependency.</td>
-            <td style={{ padding: "5px 8px", border: "1px solid #ddd", fontSize: 9 }}>Large-scale commercial & industrial solar plants for maximum ROI.</td>
-            <td style={{ padding: "5px 8px", border: "1px solid #ddd", fontSize: 9 }}>Annual maintenance contracts to ensure peak system performance.</td>
+            {[
+              { icon: "☀", t: "On-Grid Solar",     d: "Grid-tied systems with net metering for societies & offices" },
+              { icon: "🔋", t: "Off-Grid / Hybrid", d: "Battery-backed systems for zero grid dependency" },
+              { icon: "🏭", t: "C&I Projects",      d: "Large commercial & industrial solar plants for max ROI" },
+              { icon: "🔧", t: "O&M Services",      d: "Annual maintenance for peak system performance" },
+            ].map(s => (
+              <td key={s.t} style={{
+                padding: "10px 12px", border: "1px solid #d0d7e2",
+                fontSize: 10.5, width: "25%", verticalAlign: "top",
+              }}>
+                <div style={{ fontWeight: 700, color: NAVY, marginBottom: 4, fontSize: 11 }}>
+                  {s.icon} {s.t}
+                </div>
+                <div style={{ color: "#444", lineHeight: 1.4 }}>{s.d}</div>
+              </td>
+            ))}
           </tr>
         </tbody>
       </table>
 
-      {/* Why Choose Us */}
-      <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 16 }}>
-        <thead>
-          <tr style={{ background: DARK_BLUE, color: "white" }}>
-            <th colSpan={2} style={{ padding: "6px 10px", textAlign: "left", fontSize: 10 }}>WHY CHOOSE US</th>
-          </tr>
-        </thead>
+      <BlueBar>WHY CHOOSE OMKAR POWER SOLUTIONS</BlueBar>
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <tbody>
-          <tr style={{ background: "#f0fff4" }}>
-            <td style={{ padding: "6px 10px", border: "1px solid #ddd", fontSize: 9 }}>
-              {["✔ Turnkey EPC — single point responsibility", "✔ Tier-1 modules & inverters only", "✔ HDG structures with 15-yr corrosion warranty", "✔ Erection All Risk & Marine insurance included"].map(i => <div key={i}>{i}</div>)}
-            </td>
-            <td style={{ padding: "6px 10px", border: "1px solid #ddd", fontSize: 9 }}>
-              {["✔ DISCOM approvals fully managed by us", "✔ Height-trained workforce, zero accident record", "✔ Performance monitoring setup included", "✔ Post-commissioning AMC support available"].map(i => <div key={i}>{i}</div>)}
-            </td>
+          <tr style={{ background: GREEN_LIGHT }}>
+            {[
+              [
+                "Turnkey EPC — single point responsibility",
+                "Tier-1 Waaree & Premier modules only",
+                "HDG structures — 15-yr corrosion warranty",
+                "EAR & Marine insurance included",
+              ],
+              [
+                "DISCOM net metering handled end-to-end",
+                "Height-trained team, zero accident record",
+                "Remote monitoring setup included",
+                "Post-commissioning AMC available",
+              ],
+            ].map((col, ci) => (
+              <td key={ci} style={{
+                padding: "11px 16px", border: "1px solid #d0d7e2",
+                fontSize: 11, width: "50%", verticalAlign: "top", lineHeight: 1.9,
+              }}>
+                {col.map(i => (
+                  <div key={i}>
+                    <span style={{ color: GREEN_DARK, fontWeight: 700, marginRight: 7 }}>✔</span>{i}
+                  </div>
+                ))}
+              </td>
+            ))}
+          </tr>
+        </tbody>
+      </table>
+    </>
+  );
+}
+
+/* ─── PAGE 2 — Proposal Details ─── */
+function P2({ f, c }: { f: QuoteForm; c: Calc }) {
+  return (
+    <>
+      <NavBar title="Proposal Details" />
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <tbody>
+          <tr>
+            <td style={{ ...LB, width: "18%" }}>Proposal No.</td>
+            <td style={{ ...TD, width: "32%" }}>{f.proposalNo}</td>
+            <td style={{ ...LB, width: "18%" }}>Date</td>
+            <td style={{ ...TD, width: "32%" }}>{fmtDate(f.date)}</td>
+          </tr>
+          <tr>
+            <td style={LB}>Client Name</td>
+            <td style={{ ...TD, fontWeight: 700 }}>{f.clientName || "—"}</td>
+            <td style={LB}>Valid Until</td>
+            <td style={TD}>{fmtDate(f.validUntil)}</td>
+          </tr>
+          <tr>
+            <td style={LB}>Site Address</td>
+            <td colSpan={3} style={TD}>{f.siteAddress || "__________________"}</td>
           </tr>
         </tbody>
       </table>
 
-      <Footer />
-
-      {/* ── SECTION 2 — PROPOSAL DETAILS ── */}
-      <div style={{ marginTop: 24 }}>
-        <SectionHeader title="SECTION 2 — PROPOSAL DETAILS" />
-        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 12 }}>
-          <tbody>
-            <tr>
-              <td style={{ background: LIGHT_BLUE, padding: "5px 8px", fontWeight: "bold", border: "1px solid #ddd", width: "20%" }}>Proposal No.</td>
-              <td style={{ padding: "5px 8px", border: "1px solid #ddd", width: "30%" }}>{form.proposalNo}</td>
-              <td style={{ background: LIGHT_BLUE, padding: "5px 8px", fontWeight: "bold", border: "1px solid #ddd", width: "20%" }}>Date</td>
-              <td style={{ padding: "5px 8px", border: "1px solid #ddd", width: "30%" }}>{formatDate(form.date)}</td>
-            </tr>
-            <tr>
-              <td style={{ background: LIGHT_BLUE, padding: "5px 8px", fontWeight: "bold", border: "1px solid #ddd" }}>Client Name</td>
-              <td style={{ padding: "5px 8px", border: "1px solid #ddd", fontWeight: "bold" }}>{form.clientName || "—"}</td>
-              <td style={{ background: LIGHT_BLUE, padding: "5px 8px", fontWeight: "bold", border: "1px solid #ddd" }}>Valid Until</td>
-              <td style={{ padding: "5px 8px", border: "1px solid #ddd" }}>{formatDate(form.validUntil)}</td>
-            </tr>
-            <tr>
-              <td style={{ background: LIGHT_BLUE, padding: "5px 8px", fontWeight: "bold", border: "1px solid #ddd" }}>Site Address</td>
-              <td style={{ padding: "5px 8px", border: "1px solid #ddd" }}>{form.siteAddress || "—"}</td>
-              <td style={{ background: LIGHT_BLUE, padding: "5px 8px", fontWeight: "bold", border: "1px solid #ddd" }}>Contact Person</td>
-              <td style={{ padding: "5px 8px", border: "1px solid #ddd" }}>{form.contactPerson || "—"}</td>
-            </tr>
-          </tbody>
-        </table>
-
-        {/* System at a Glance */}
-        <SectionHeader title="SYSTEM AT A GLANCE" />
-        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 12 }}>
+      <div style={{ marginTop: 18 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
-            <tr style={{ background: DARK_BLUE, color: "white" }}>
+            <tr style={{ background: BLUE, color: "white" }}>
               {["SYSTEM CAPACITY", "SOLAR PANELS", "INVERTER", "EST. GENERATION"].map(h => (
-                <th key={h} style={{ padding: "6px 8px", border: "1px solid #ddd", textAlign: "center" }}>{h}</th>
+                <th key={h} style={{
+                  padding: "7px 10px", border: "1px solid #d0d7e2",
+                  textAlign: "left", fontSize: 11, width: "25%",
+                }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            <tr style={{ textAlign: "center" }}>
-              <td style={{ padding: "10px", border: "1px solid #ddd", fontWeight: "bold", fontSize: 16, color: BLUE }}>{form.systemCapacity} kWp</td>
-              <td style={{ padding: "10px", border: "1px solid #ddd", fontWeight: "bold" }}>{calc.panels} Panels<br /><span style={{ fontWeight: "normal", fontSize: 9 }}>Waaree 580 Wp</span></td>
-              <td style={{ padding: "10px", border: "1px solid #ddd", fontWeight: "bold" }}>{calc.inverterKw} kW<br /><span style={{ fontWeight: "normal", fontSize: 9 }}>Waaree String</span></td>
-              <td style={{ padding: "10px", border: "1px solid #ddd", fontWeight: "bold", color: "#22c55e" }}>{calc.estGeneration.toLocaleString()} kWh<br /><span style={{ fontWeight: "normal", fontSize: 9 }}>per year (est.)</span></td>
-            </tr>
-          </tbody>
-        </table>
-
-        {/* Technical Specs */}
-        <SectionHeader title="TECHNICAL SPECIFICATIONS" />
-        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 12 }}>
-          <tbody>
-            {[
-              ["Module", "Waaree / Premier TopCon Bifacial 580 Wp DCR", "Inverter", `Waaree ${form.systemCapacity} kW String Inverter`],
-              ["Structure", "Hot-Dip Galvanized (HDG)", "DC Cable", "4 mm² Tinned Cu, EN-50618 (Waasol)"],
-              ["Performance Ratio", "75% | GHI: 1,850 kWh/m²", "Degradation", "0.45% YoY from Year 2"],
-              ["Timeline", calc.timeline, "BIS / Compliance", "Yes — Module BIS | EN-50618 Cables"],
-            ].map((row, i) => (
-              <tr key={i}>
-                <td style={{ background: LIGHT_BLUE, padding: "5px 8px", fontWeight: "bold", border: "1px solid #ddd", width: "18%", color: BLUE }}>{row[0]}</td>
-                <td style={{ padding: "5px 8px", border: "1px solid #ddd", width: "32%" }}>{row[1]}</td>
-                <td style={{ background: LIGHT_BLUE, padding: "5px 8px", fontWeight: "bold", border: "1px solid #ddd", width: "18%", color: BLUE }}>{row[2]}</td>
-                <td style={{ padding: "5px 8px", border: "1px solid #ddd", width: "32%" }}>{row[3]}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <Footer />
-      </div>
-
-      {/* ── SECTION 3 — PRICING ── */}
-      <div style={{ marginTop: 24 }}>
-        <SectionHeader title="SECTION 3 — PRICING" />
-        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 12 }}>
-          <thead>
-            <tr style={{ background: DARK_BLUE, color: "white" }}>
-              <th style={{ padding: "6px 10px", border: "1px solid #ddd", textAlign: "left" }}>PRICING BREAKDOWN</th>
-              <th style={{ padding: "6px 10px", border: "1px solid #ddd", textAlign: "right" }}>AMOUNT</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[
-              ["System Capacity", `${calc.wp.toLocaleString()} Wp (${calc.panels} × 580 Wp panels)`],
-              ["Rate (Rs. / Wp)", `Rs. ${form.ratePerWp}.00 / Wp`],
-              ["Total Price (excl. GST)", formatINR(calc.exGST)],
-              ["GST @ 12%", formatINR(calc.gst)],
-            ].map(([label, val], i) => (
-              <tr key={i}>
-                <td style={{ background: LIGHT_BLUE, padding: "5px 10px", fontWeight: "bold", border: "1px solid #ddd", color: BLUE }}>{label}</td>
-                <td style={{ padding: "5px 10px", border: "1px solid #ddd", textAlign: "right", fontWeight: i >= 2 ? "bold" : "normal" }}>{val}</td>
-              </tr>
-            ))}
-            <tr style={{ background: "#FFF9E6" }}>
-              <td style={{ padding: "8px 10px", fontWeight: "bold", border: "1px solid #ddd", fontSize: 12 }}>TOTAL PRICE (incl. GST)</td>
-              <td style={{ padding: "8px 10px", border: "1px solid #ddd", textAlign: "right", fontWeight: "bold", fontSize: 14, color: ACCENT }}>{formatINR(calc.total)}</td>
-            </tr>
-          </tbody>
-        </table>
-
-        {/* Payment Schedule */}
-        <SectionHeader title="PAYMENT SCHEDULE" />
-        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 12 }}>
-          <thead>
-            <tr style={{ background: DARK_BLUE, color: "white" }}>
-              <th style={{ padding: "6px 8px", border: "1px solid #ddd", width: "8%" }}></th>
-              <th style={{ padding: "6px 8px", border: "1px solid #ddd", textAlign: "left" }}>MILESTONE</th>
-              <th style={{ padding: "6px 8px", border: "1px solid #ddd", textAlign: "center" }}>%</th>
-              <th style={{ padding: "6px 8px", border: "1px solid #ddd", textAlign: "right" }}>AMOUNT (Rs.)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[
-              { label: "T-1", desc: "Advance on Purchase Order", pct: "30%", amt: calc.t1 },
-              { label: "T-2", desc: "Material Delivery to Site", pct: "40%", amt: calc.t2 },
-              { label: "T-3", desc: "Installation & Commissioning", pct: "20%", amt: calc.t3 },
-              { label: "T-4", desc: "Net Meter Approval & System Handover", pct: "10%", amt: calc.t4 },
-            ].map((row) => (
-              <tr key={row.label}>
-                <td style={{ padding: "5px 8px", border: "1px solid #ddd", background: BLUE, color: "white", textAlign: "center", fontWeight: "bold" }}>{row.label}</td>
-                <td style={{ padding: "5px 8px", border: "1px solid #ddd" }}>{row.desc}</td>
-                <td style={{ padding: "5px 8px", border: "1px solid #ddd", textAlign: "center", fontWeight: "bold" }}>{row.pct}</td>
-                <td style={{ padding: "5px 8px", border: "1px solid #ddd", textAlign: "right", fontWeight: "bold", color: BLUE }}>{formatINR(row.amt)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {/* Warranties */}
-        <SectionHeader title="WARRANTIES" />
-        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 12 }}>
-          <thead>
-            <tr style={{ background: DARK_BLUE, color: "white" }}>
-              <th style={{ padding: "6px 8px", border: "1px solid #ddd", textAlign: "left" }}>Component</th>
-              <th style={{ padding: "6px 8px", border: "1px solid #ddd", textAlign: "left" }}>Coverage</th>
-              <th style={{ padding: "6px 8px", border: "1px solid #ddd", textAlign: "center" }}>Period</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[
-              ["Solar PV Modules", "Manufacturing Defect", "12 Years"],
-              ["Solar PV Modules", "Linear Performance", "30 Years"],
-              ["Inverter", "Standard Warranty", "5 Years (extendable to 8)"],
-              ["Structure (HDG)", "Corrosion Warranty", "15 Years"],
-              ["Balance of System", "OEM Standard", "1 Year"],
-              ["Workmanship", "Installation Quality", "1 Year"],
-            ].map(([comp, cov, period], i) => (
-              <tr key={i} style={{ background: i % 2 === 0 ? "#f0fff4" : "white" }}>
-                <td style={{ padding: "5px 8px", border: "1px solid #ddd", fontWeight: "bold", color: BLUE }}>{comp}</td>
-                <td style={{ padding: "5px 8px", border: "1px solid #ddd" }}>{cov}</td>
-                <td style={{ padding: "5px 8px", border: "1px solid #ddd", textAlign: "center", fontWeight: "bold", color: "#22c55e" }}>{period}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <Footer />
-      </div>
-
-      {/* ── APPENDIX ── */}
-      <div style={{ marginTop: 24 }}>
-        <div style={{ background: DARK_BLUE, color: "white", padding: "6px 10px", textAlign: "center", fontWeight: "bold", fontSize: 11, marginBottom: 4 }}>
-          APPENDIX — FOR YOUR REFERENCE
-        </div>
-        <div style={{ color: "#555", fontStyle: "italic", fontSize: 9, marginBottom: 10, textAlign: "center" }}>
-          The following sections contain detailed technical specifications, scope of work and material list for your records.
-        </div>
-
-        {/* Inclusions & Exclusions */}
-        <SectionHeader title="A1 — INCLUSIONS & EXCLUSIONS" />
-        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 12 }}>
-          <thead>
-            <tr>
-              <th style={{ background: "#22c55e", color: "white", padding: "6px 10px", border: "1px solid #ddd", textAlign: "center", width: "50%" }}>✔ INCLUDED</th>
-              <th style={{ background: "#ef4444", color: "white", padding: "6px 10px", border: "1px solid #ddd", textAlign: "center", width: "50%" }}>✘ EXCLUDED (Client Scope)</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td style={{ padding: "8px 10px", border: "1px solid #ddd", background: "#f0fff4", fontSize: 9 }}>
-                {["✔ Solar modules, inverter, mounting structure", "✔ DC & AC cables, connectors, cable trays", "✔ Earthing system & lightning arrester", "✔ Net meter with LT/CT box", "✔ DISCOM net metering approval", "✔ Erection All Risk & Marine insurance", "✔ Commissioning, testing & monitoring setup"].map(i => <div key={i}>{i}</div>)}
+            <tr style={{ background: "#F5F9FF" }}>
+              <td style={{ padding: "16px 12px", border: "1px solid #d0d7e2", textAlign: "center" }}>
+                <div style={{ fontWeight: 700, fontSize: 22, color: BLUE }}>{f.systemCapacity} kWp</div>
+                <div style={{ color: "#666", fontSize: 9.5, marginTop: 2 }}>System Size</div>
               </td>
-              <td style={{ padding: "8px 10px", border: "1px solid #ddd", background: "#fff5f5", fontSize: 9 }}>
-                {["✘ Water supply at site", "✘ Internet for monitoring", "✘ Power during installation", "✘ Service lift / crane", "✘ Roof access ladder", "✘ Removal of existing system (if any)", "✘ Meter merging / load enhancement"].map(i => <div key={i}>{i}</div>)}
+              <td style={{ padding: "16px 12px", border: "1px solid #d0d7e2", textAlign: "center" }}>
+                <div style={{ fontWeight: 700, fontSize: 15, color: NAVY }}>{c.panels} Panels</div>
+                <div style={{ color: "#666", fontSize: 9.5, marginTop: 2 }}>Waaree / Premier TopCon Bifacial</div>
+                <div style={{ color: "#666", fontSize: 9.5 }}>580 Wp each</div>
               </td>
-            </tr>
-          </tbody>
-        </table>
-
-        {/* Bill of Material */}
-        <SectionHeader title="A2 — BILL OF MATERIAL" />
-        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 12 }}>
-          <thead>
-            <tr style={{ background: DARK_BLUE, color: "white" }}>
-              <th style={{ padding: "5px 8px", border: "1px solid #ddd", width: "6%" }}>Sr.</th>
-              <th style={{ padding: "5px 8px", border: "1px solid #ddd", width: "25%" }}>Item</th>
-              <th style={{ padding: "5px 8px", border: "1px solid #ddd" }}>Make / Specifications</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[
-              ["1", "Solar PV Modules", "Waaree / Premier TopCon Bifacial 580 Wp | BIS Compliant | 0.45% degradation/yr"],
-              ["2", "String Inverter", `Waaree ${form.systemCapacity} kW | Grid-tied | Remote monitoring ready`],
-              ["3", "Mounting Structure", "Hot-Dip Galvanized (HDG) | SS-304 A2-70 Fasteners | 15-yr warranty"],
-              ["4", "DC Cables", "4 mm² Tinned Cu UV-Protected | Waasol | EN-50618 Certified"],
-              ["5", "DC Connectors (MC4)", "Siemens | IP67 rated | Weatherproof"],
-              ["6", "AC Cables", "Polycab/KEI | Al XLPE Armoured | Bimetallic Lugs | Inv→ACDB→Panel"],
-              ["7", "AC Distribution Box", "Schneider/L&T/ABB | MCCB Thermal-Magnetic | OC, SC & EL protection | SPD-2: Phoenix/Citel"],
-              ["8", "Earthing System", "Polycab/KEI | Module-Module: 4 sq mm Cu | Inverter/Panel: 16 sq mm Cu"],
-              ["9", "Earth Pits & LA", "True Power/Sabo | Maintenance-Free Chemical Pits | 17.2 mm Dia Cu-Bonded 250µ"],
-              ["10", "Earth Strip", "ARMOLEX | 25×3 mm GI Strip"],
-              ["11", "Cable Tray/Conduit", "HDPE DWC UV (DC) | GI Tray (AC)"],
-              ["12", "Net Meter + LT/CT Box", "As per DISCOM spec | Fully included in scope"],
-              ["13", "Lightning Arrester", "Standard scope | Included"],
-              ["14", "AC Termination", "Comet/Dowells | Double-Compression Weatherproof Glands | Al/Cu Lugs"],
-              ["15", "EPC & Insurance", "Height-trained team | Zero accident record | EAR + Marine Insurance till commissioning"],
-              ["16", "DISCOM Approval", "Net metering registration — fully managed by Omkar Power Solutions"],
-            ].map(([sr, item, spec], i) => (
-              <tr key={sr} style={{ background: i % 2 === 0 ? "white" : "#f9fafb" }}>
-                <td style={{ padding: "4px 8px", border: "1px solid #ddd", textAlign: "center" }}>{sr}</td>
-                <td style={{ padding: "4px 8px", border: "1px solid #ddd", fontWeight: "bold", color: BLUE }}>{item}</td>
-                <td style={{ padding: "4px 8px", border: "1px solid #ddd", fontSize: 9 }}>{spec}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {/* Scope of Work */}
-        <SectionHeader title="A3 — SCOPE OF WORK MATRIX" />
-        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 12 }}>
-          <thead>
-            <tr style={{ background: DARK_BLUE, color: "white" }}>
-              <th style={{ padding: "5px 8px", border: "1px solid #ddd", width: "6%" }}>#</th>
-              <th style={{ padding: "5px 8px", border: "1px solid #ddd" }}>Description</th>
-              <th style={{ padding: "5px 8px", border: "1px solid #ddd", textAlign: "center" }}>Design</th>
-              <th style={{ padding: "5px 8px", border: "1px solid #ddd", textAlign: "center" }}>Supply</th>
-              <th style={{ padding: "5px 8px", border: "1px solid #ddd", textAlign: "center" }}>Install</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[
-              ["1", "Design & Engineering", "OPS", "—", "—"],
-              ["2", "Solar PV Modules", "OPS", "OPS", "OPS"],
-              ["3", "Inverters", "OPS", "OPS", "OPS"],
-              ["4", "Mounting Structures", "OPS", "OPS", "OPS"],
-              ["5", "LT Panels / ACDB", "OPS", "OPS", "OPS"],
-              ["6", "DC & AC Cables", "OPS", "OPS", "OPS"],
-              ["7", "Earthing System", "OPS", "OPS", "OPS"],
-              ["8", "Spare Feeder", "OPS", "OPS", "OPS"],
-              ["9", "Net Metering & DISCOM", "OPS", "—", "OPS"],
-            ].map(([num, desc, design, supply, install], i) => (
-              <tr key={num} style={{ background: i % 2 === 0 ? "white" : "#f9fafb" }}>
-                <td style={{ padding: "4px 8px", border: "1px solid #ddd", textAlign: "center" }}>{num}</td>
-                <td style={{ padding: "4px 8px", border: "1px solid #ddd", fontWeight: "bold" }}>{desc}</td>
-                {[design, supply, install].map((val, j) => (
-                  <td key={j} style={{ padding: "4px 8px", border: "1px solid #ddd", textAlign: "center", color: val === "OPS" ? "#22c55e" : "#999", fontWeight: val === "OPS" ? "bold" : "normal" }}>{val}</td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {/* Signatures */}
-        <SectionHeader title="ACCEPTANCE & SIGNATURES" />
-        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 16 }}>
-          <thead>
-            <tr style={{ background: DARK_BLUE, color: "white" }}>
-              <th style={{ padding: "6px 10px", border: "1px solid #ddd", textAlign: "left" }}>For Omkar Power Solutions</th>
-              <th style={{ padding: "6px 10px", border: "1px solid #ddd", textAlign: "left" }}>Accepted by — {form.clientName || "Client"}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td style={{ padding: "30px 10px 10px", border: "1px solid #ddd", verticalAlign: "bottom" }}>
-                <div style={{ borderTop: "1px solid #999", paddingTop: 4, fontSize: 9 }}>
-                  <div>Authorised Signatory</div>
-                  <div style={{ fontWeight: "bold" }}>Name: Omkar Deshmukh</div>
-                  <div>Date: _______________</div>
+              <td style={{ padding: "16px 12px", border: "1px solid #d0d7e2", textAlign: "center" }}>
+                <div style={{ fontWeight: 700, fontSize: 15, color: NAVY }}>{f.systemCapacity} kW String</div>
+                <div style={{ color: "#666", fontSize: 9.5, marginTop: 2 }}>Waaree String Inverter</div>
+              </td>
+              <td style={{ padding: "16px 12px", border: "1px solid #d0d7e2", textAlign: "center", background: GREEN_LIGHT }}>
+                <div style={{ fontWeight: 700, fontSize: 19, color: GREEN_DARK }}>
+                  {c.gen.toLocaleString("en-IN")}
                 </div>
-              </td>
-              <td style={{ padding: "30px 10px 10px", border: "1px solid #ddd", verticalAlign: "bottom" }}>
-                <div style={{ borderTop: "1px solid #999", paddingTop: 4, fontSize: 9 }}>
-                  <div>Client Signature</div>
-                  <div style={{ fontWeight: "bold" }}>Name: Chairman / Authorised Signatory</div>
-                  <div>Date: _______________</div>
-                </div>
+                <div style={{ color: "#555", fontSize: 9.5, marginTop: 2 }}>kWh / year (est.)</div>
               </td>
             </tr>
           </tbody>
         </table>
-
-        <div style={{ textAlign: "center", color: BLUE, fontWeight: "bold", fontSize: 11, marginBottom: 16 }}>
-          Thank you for choosing Omkar Power Solutions — Powering a Greener Tomorrow ☀
-        </div>
-
-        <Footer />
       </div>
-    </div>
+
+      <NavBar title="Technical Specifications" />
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <tbody>
+          {[
+            ["Module",            `Waaree / Premier TopCon Bifacial 580 Wp DCR`,  "Inverter",         `Waaree String Inverter ${f.systemCapacity} kW String`],
+            ["Structure",         "Hot-Dip Galvanized (HDG)",                      "DC Cable",         "4 mm² Tinned Cu, EN-50618 (Waasol)"],
+            ["Performance Ratio", "75%  |  GHI: 1,850 kWh/m²",                    "Degradation",      "0.45% YoY from Year 2"],
+            ["Timeline",          "60–70 days from PO & Advance",                  "BIS / Compliance", "Yes — Module BIS | EN-50618"],
+          ].map((row, i) => (
+            <tr key={i}>
+              <td style={{ ...LB, width: "18%" }}>{row[0]}</td>
+              <td style={{ ...TD, width: "32%" }}>{row[1]}</td>
+              <td style={{ ...LB, width: "18%" }}>{row[2]}</td>
+              <td style={{ ...TD, width: "32%" }}>{row[3]}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
   );
 }
 
-function SectionHeader({ title }: { title: string }) {
+/* ─── PAGE 3 — Pricing ─── */
+function P3({ f, c }: { f: QuoteForm; c: Calc }) {
   return (
-    <div style={{ background: "#1A4F8A", color: "white", padding: "5px 10px", borderRadius: 4, fontWeight: "bold", fontSize: 10, marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
-      <div style={{ width: 3, height: 14, background: "#F5A623", borderRadius: 2 }} />
-      {title}
-    </div>
+    <>
+      <NavBar title="Pricing" sub="Investment summary" />
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <thead>
+          <tr>
+            <th style={{ ...TH, width: "55%" }}>DESCRIPTION</th>
+            <th style={TH}>AMOUNT</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style={{ ...LB, fontWeight: 600 }}>System Capacity</td>
+            <td style={TD}>{c.panels} Panels × 580 Wp = {c.instWp.toLocaleString("en-IN")} Wp</td>
+          </tr>
+          <tr>
+            <td style={{ ...LB, fontWeight: 600 }}>Rate (Rs. / kW)</td>
+            <td style={TD}>Rs. {f.ratePerKw.toLocaleString("en-IN")} per kW (incl. GST)</td>
+          </tr>
+          <tr>
+            <td style={{ ...LB, fontWeight: 600 }}>Total (excl. GST @ 8.9%)</td>
+            <td style={{ ...TD, fontWeight: 700 }}>{inr(c.exGst)}</td>
+          </tr>
+          <tr>
+            <td style={{ ...LB, fontWeight: 600 }}>GST @ 8.9%</td>
+            <td style={TD}>{inr(c.gst)}</td>
+          </tr>
+          <tr style={{ background: NAVY }}>
+            <td style={{ padding: "10px 12px", border: "1px solid #d0d7e2", color: "white", fontWeight: 700, fontSize: 13 }}>
+              NET TOTAL (incl. GST)
+            </td>
+            <td style={{ padding: "10px 12px", border: "1px solid #d0d7e2", color: ACCENT, fontWeight: 700, fontSize: 15 }}>
+              {inr(c.net)}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <NavBar title="Payment Schedule" sub="Milestone-based" />
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <thead>
+          <tr>
+            <th style={{ ...TH, width: "8%" }}></th>
+            <th style={TH}>MILESTONE</th>
+            <th style={{ ...TH, textAlign: "center", width: "14%" }}>%</th>
+            <th style={{ ...TH, textAlign: "right", width: "24%" }}>AMOUNT</th>
+          </tr>
+        </thead>
+        <tbody>
+          {[
+            { l: "T-1", d: "Advance on Purchase Order",     p: "30%", a: c.t1 },
+            { l: "T-2", d: "Material Delivery to Site",     p: "40%", a: c.t2 },
+            { l: "T-3", d: "Installation & Commissioning",  p: "20%", a: c.t3 },
+            { l: "T-4", d: "Net Meter Approval & Handover", p: "10%", a: c.t4 },
+          ].map(r => (
+            <tr key={r.l}>
+              <td style={{ ...TD, background: BLUE, color: "white", textAlign: "center", fontWeight: 700 }}>{r.l}</td>
+              <td style={TD}>{r.d}</td>
+              <td style={{ ...TD, textAlign: "center", fontWeight: 700 }}>{r.p}</td>
+              <td style={{ ...TD, textAlign: "right", fontWeight: 700 }}>{inr(r.a)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
   );
 }
 
-function Footer() {
+/* ─── PAGE 4 — Warranties + Inclusions/Exclusions ─── */
+function P4() {
   return (
-    <div style={{ borderTop: "1px solid #ddd", paddingTop: 6, textAlign: "center", color: "#666", fontSize: 8, marginTop: 8 }}>
-      Omkar Power Solutions | 8452035102 | omkarpowersolutions16@gmail.com | Confidential
+    <>
+      <NavBar title="Warranties" sub="OEM guaranteed" />
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <thead>
+          <tr>
+            <th style={{ ...TH, width: "35%" }}>COMPONENT</th>
+            <th style={TH}>COVERAGE</th>
+            <th style={{ ...TH, textAlign: "center", width: "20%" }}>PERIOD</th>
+          </tr>
+        </thead>
+        <tbody>
+          {[
+            ["Solar PV Modules",  "Manufacturing Defect",           "12 Years"],
+            ["Solar PV Modules",  "Linear Performance (80% output)", "30 Years"],
+            ["Inverter",          "Standard OEM Warranty",           "5 Years (ext. to 8)"],
+            ["Structure (HDG)",   "Corrosion Warranty",              "15 Years"],
+            ["Balance of System", "OEM Standard",                    "1 Year"],
+            ["Workmanship",       "Installation Quality",            "1 Year"],
+          ].map(([comp, cov, period], i) => (
+            <tr key={i} style={{ background: i % 2 === 0 ? "#fff" : GREEN_LIGHT }}>
+              <td style={{ ...TD, fontWeight: 700, color: NAVY }}>{comp}</td>
+              <td style={TD}>{cov}</td>
+              <td style={{ ...TD, textAlign: "center", fontWeight: 700, color: GREEN_DARK }}>{period}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <NavBar title="Inclusions & Exclusions" sub="Scope clarity" />
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <thead>
+          <tr>
+            <th style={{ ...TD, background: BLUE,     color: "white", fontWeight: 700, width: "50%", textAlign: "left" }}>
+              ✔&nbsp; INCLUDED IN SCOPE
+            </th>
+            <th style={{ ...TD, background: RED_DARK, color: "white", fontWeight: 700, width: "50%", textAlign: "left" }}>
+              ✘&nbsp; EXCLUDED — CLIENT SCOPE
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style={{ ...TD, background: GREEN_LIGHT, lineHeight: 1.95, verticalAlign: "top", padding: "12px 16px" }}>
+              {[
+                "Solar modules, inverter, mounting structure",
+                "DC & AC cables, connectors, cable trays",
+                "Earthing system & lightning arrester",
+                "Net meter with LT/CT box",
+                "DISCOM net metering approval",
+                "EAR & Marine insurance till commissioning",
+                "Commissioning, testing & monitoring setup",
+              ].map(i => (
+                <div key={i}>
+                  <span style={{ color: GREEN_DARK, fontWeight: 700, marginRight: 7 }}>✔</span>{i}
+                </div>
+              ))}
+            </td>
+            <td style={{ ...TD, background: RED_LIGHT, lineHeight: 1.95, verticalAlign: "top", padding: "12px 16px" }}>
+              {[
+                "Water supply at site",
+                "Internet for monitoring",
+                "Power during installation",
+                "Service lift / crane",
+                "Roof access ladder",
+                "Removal of existing old system",
+                "Meter merging / load enhancement",
+              ].map(i => (
+                <div key={i}>
+                  <span style={{ color: RED_DARK, fontWeight: 700, marginRight: 7 }}>✘</span>{i}
+                </div>
+              ))}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </>
+  );
+}
+
+/* ─── PAGE 5 — Appendix: BoM + Scope Matrix ─── */
+function P5({ f }: { f: QuoteForm }) {
+  const bom = [
+    ["1",  "Solar PV Modules",      `Waaree / Premier TopCon Bifacial 580 Wp | BIS Compliant | 0.45% degradation/yr`],
+    ["2",  "String Inverter",       `Waaree String Inverter ${f.systemCapacity} kW String | Grid-tied | Remote monitoring ready`],
+    ["3",  "Mounting Structure",    "Hot-Dip Galvanized (HDG) | SS-304 A2-70 Fasteners | 15-yr warranty"],
+    ["4",  "DC Cables",             "4 mm² Tinned Cu UV-Protected | Waasol | EN-50618 Certified"],
+    ["5",  "DC Connectors (MC4)",   "Siemens | IP67 rated | Weatherproof"],
+    ["6",  "AC Cables",             "Polycab/KEI | Al XLPE Armoured | Bimetallic Lugs | Inv→ACDB→Panel"],
+    ["7",  "AC Distribution Box",   "Schneider/L&T/ABB | MCCB | OC, SC & EL protection | SPD-2"],
+    ["8",  "Earthing System",       "Polycab/KEI | Module-Module: 4 sq mm Cu | Inverter: 16 sq mm Cu"],
+    ["9",  "Earth Pits & LA",       "True Power/Sabo | Maintenance-Free Chemical Pits | Cu-Bonded 250µ"],
+    ["10", "Earth Strip",           "ARMOLEX | 25×3 mm GI Strip"],
+    ["11", "Cable Tray/Conduit",    "HDPE DWC UV (DC) | GI Tray (AC)"],
+    ["12", "Net Meter + LT/CT Box", "As per DISCOM spec | Fully included"],
+    ["13", "Lightning Arrester",    "Standard scope | Included"],
+    ["14", "AC Termination",        "Comet/Dowells | Double-Compression Weatherproof Glands"],
+    ["15", "EPC & Insurance",       "Height-trained team | Zero accident record | EAR + Marine Insurance"],
+    ["16", "DISCOM Approval",       "Net metering registration — fully managed by Omkar Power Solutions"],
+  ];
+
+  const scope = [
+    ["1", "Design & Engineering",  "OPS", "—",   "—"],
+    ["2", "Solar PV Modules",      "OPS", "OPS", "OPS"],
+    ["3", "Inverters",             "OPS", "OPS", "OPS"],
+    ["4", "Mounting Structures",   "OPS", "OPS", "OPS"],
+    ["5", "LT Panels / ACDB",      "OPS", "OPS", "OPS"],
+    ["6", "DC & AC Cables",        "OPS", "OPS", "OPS"],
+    ["7", "Earthing System",       "OPS", "OPS", "OPS"],
+    ["8", "Spare Feeder",          "OPS", "OPS", "OPS"],
+    ["9", "Net Metering & DISCOM", "OPS", "—",   "OPS"],
+  ];
+
+  return (
+    <>
+      <NavBar title="Appendix" sub="Technical details & scope documentation" />
+
+      <NavBar title="Bill of Material" sub="Scope of supply & service" />
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <thead>
+          <tr>
+            <th style={{ ...TH, width: "5%", textAlign: "center" }}>Sr.</th>
+            <th style={{ ...TH, width: "26%" }}>Item</th>
+            <th style={TH}>Make / Specifications</th>
+          </tr>
+        </thead>
+        <tbody>
+          {bom.map(([sr, item, spec], i) => (
+            <tr key={sr} style={{ background: i % 2 === 0 ? "#fff" : "#F5F9FF" }}>
+              <td style={{ ...TD, textAlign: "center", fontSize: 10.5 }}>{sr}</td>
+              <td style={{ ...TD, fontWeight: 700, color: NAVY, fontSize: 10.5 }}>{item}</td>
+              <td style={{ ...TD, fontSize: 10.5 }}>{spec}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <NavBar title="Scope of Work Matrix" sub="Design · Supply · Installation" />
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <thead>
+          <tr>
+            <th style={{ ...TH, width: "6%", textAlign: "center" }}>#</th>
+            <th style={TH}>Description</th>
+            <th style={{ ...TH, textAlign: "center", width: "14%" }}>Design</th>
+            <th style={{ ...TH, textAlign: "center", width: "14%" }}>Supply</th>
+            <th style={{ ...TH, textAlign: "center", width: "14%" }}>Install</th>
+          </tr>
+        </thead>
+        <tbody>
+          {scope.map(([num, desc, design, supply, install], i) => (
+            <tr key={num} style={{ background: i % 2 === 0 ? "#fff" : "#F5F9FF" }}>
+              <td style={{ ...TD, textAlign: "center" }}>{num}</td>
+              <td style={{ ...TD, fontWeight: 700 }}>{desc}</td>
+              {[design, supply, install].map((v, j) => (
+                <td key={j} style={{
+                  ...TD, textAlign: "center", fontWeight: 700,
+                  color: v === "OPS" ? GREEN_DARK : "#999",
+                }}>{v}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  );
+}
+
+/* ─── PAGE 6 — Signatures ─── */
+function P6({ f }: { f: QuoteForm }) {
+  return (
+    <>
+      <NavBar title="Acceptance & Signatures" />
+      <div style={{
+        background: LIGHT, border: `1px solid ${BLUE}`, borderRadius: 3,
+        padding: "10px 16px", fontSize: 11.5, lineHeight: 1.6, marginBottom: 20,
+      }}>
+        By signing below, both parties agree to the terms and conditions of this
+        Techno-Commercial Proposal.{" "}
+        <span style={{ color: RED_DARK, fontWeight: 600 }}>
+          Payment milestones as per the schedule above. GST additional as applicable.
+          Proposal valid for 30 days.
+        </span>
+      </div>
+
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <thead>
+          <tr style={{ background: BLUE, color: "white" }}>
+            <th style={{ padding: "8px 14px", border: "1px solid #d0d7e2", fontWeight: 700, textAlign: "left", width: "50%" }}>
+              FOR OMKAR POWER SOLUTIONS
+            </th>
+            <th style={{ padding: "8px 14px", border: "1px solid #d0d7e2", fontWeight: 700, textAlign: "left" }}>
+              ACCEPTED BY — {f.clientName ? f.clientName.toUpperCase() : "CLIENT"}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style={{ padding: "55px 20px 20px", border: "1px solid #d0d7e2", verticalAlign: "bottom" }}>
+              <div style={{ borderTop: "1px solid #aaa", paddingTop: 8, fontSize: 10.5 }}>
+                <div style={{ color: "#666" }}>Authorised Signatory</div>
+                <div style={{ fontWeight: 700, marginTop: 3 }}>Name: Omkar Deshmukh</div>
+                <div style={{ marginTop: 2 }}>Designation: Proprietor</div>
+                <div style={{ marginTop: 8 }}>Date: _______________</div>
+                <div style={{ marginTop: 5, color: "#666" }}>Seal:</div>
+              </div>
+            </td>
+            <td style={{ padding: "55px 20px 20px", border: "1px solid #d0d7e2", verticalAlign: "bottom" }}>
+              <div style={{ borderTop: "1px solid #aaa", paddingTop: 8, fontSize: 10.5 }}>
+                <div style={{ color: "#666" }}>Authorised Signatory</div>
+                <div style={{ fontWeight: 700, marginTop: 3 }}>
+                  Name: {f.clientName || "___________________"}
+                </div>
+                <div style={{ marginTop: 2 }}>Designation: ___________________</div>
+                <div style={{ marginTop: 8 }}>Date: _______________</div>
+                <div style={{ marginTop: 5, color: "#666" }}>Seal:</div>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div style={{
+        marginTop: 28, background: NAVY, color: "white",
+        textAlign: "center", padding: "12px", borderRadius: 3,
+        fontSize: 12, fontWeight: 600,
+      }}>
+        <span style={{ color: ACCENT }}>Thank you for choosing Omkar Power Solutions</span>
+        {" "}— Powering a Greener Tomorrow ☀
+      </div>
+    </>
+  );
+}
+
+/* ─── Full Document ─── */
+function QuotationDocument({ f, c }: { f: QuoteForm; c: Calc }) {
+  return (
+    <div id="quotation-document">
+      <Page><P1 /></Page>
+      <Page><P2 f={f} c={c} /></Page>
+      <Page><P3 f={f} c={c} /></Page>
+      <Page><P4 /></Page>
+      <Page><P5 f={f} /></Page>
+      <Page><P6 f={f} /></Page>
     </div>
   );
 }
 
+/* ─── Field (outside QuotePage) ─── */
+function Field({
+  label, name, value, onChange, type = "text", placeholder = "",
+}: {
+  label: string;
+  name: keyof QuoteForm;
+  value: string | number;
+  onChange: (e: ChangeEvent<HTMLInputElement>) => void;
+  type?: string;
+  placeholder?: string;
+}) {
+  return (
+    <div>
+      <label className="block text-xs text-gray-400 mb-1.5">{label}</label>
+      <input
+        type={type} name={name} value={value}
+        onChange={onChange} placeholder={placeholder}
+        className="w-full px-4 py-2.5 text-sm rounded-xl bg-gray-800 border border-gray-700 text-white outline-none focus:border-blue-500 placeholder-gray-600"
+      />
+    </div>
+  );
+}
+
+/* ─── Main Page ─── */
 export default function QuotePage() {
   const today = new Date().toISOString().split("T")[0];
-  const validDate = new Date();
-  validDate.setDate(validDate.getDate() + 30);
-  const validStr = validDate.toISOString().split("T")[0];
+  const valid = new Date(); valid.setDate(valid.getDate() + 30);
 
-  const [form, setForm] = useState<QuoteData>({
+  const [f, setF] = useState<QuoteForm>({
     proposalNo: `OPS-${new Date().getFullYear()}-001`,
     date: today,
-    validUntil: validStr,
+    validUntil: valid.toISOString().split("T")[0],
     clientName: "",
     siteAddress: "",
     contactPerson: "",
-    systemCapacity: 10,
-    ratePerWp: 52,
+    systemCapacity: 15,
+    ratePerKw: 59833,
   });
 
-  const calc = calculateQuote(form);
+  const [busy, setBusy] = useState(false);
+  const c = compute(f);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setForm((prev) => ({
-      ...prev,
-      [name]: name === "systemCapacity" || name === "ratePerWp" ? parseFloat(value) || 0 : value,
+    setF(p => ({
+      ...p,
+      [name]: name === "systemCapacity" || name === "ratePerKw"
+        ? parseFloat(value) || 0 : value,
     }));
   };
 
-    const handleDownloadPDF = async () => {
-    const html2canvas = (await import("html2canvas")).default;
-    const jsPDF = (await import("jspdf")).default;
-
-    const element = document.getElementById("quotation-document");
-    if (!element) return;
-
-    const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        windowWidth: 800,
-    });
-
-    const imgData = canvas.toDataURL("image/png");
-    const pdf = new jsPDF("p", "mm", "a4");
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = pdf.internal.pageSize.getHeight();
-    const imgWidth = pdfWidth;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-    const totalPages = Math.ceil(imgHeight / pdfHeight);
-
-    for (let page = 0; page < totalPages; page++) {
-        if (page > 0) pdf.addPage();
-        const yOffset = -(page * pdfHeight);
-        pdf.addImage(imgData, "PNG", 0, yOffset, imgWidth, imgHeight);
-    }
-
-    pdf.save(`Proposal for ${form.clientName || "Client"} ${form.systemCapacity} KW.pdf`);
-    };
+  const downloadPDF = async () => {
+    setBusy(true);
+    try {
+      const html2canvas = (await import("html2canvas")).default;
+      const jsPDF = (await import("jspdf")).default;
+      const pages = document.querySelectorAll<HTMLElement>(".quote-page");
+      if (!pages.length) return;
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pw = pdf.internal.pageSize.getWidth();
+      const ph = pdf.internal.pageSize.getHeight();
+      for (let i = 0; i < pages.length; i++) {
+        const canvas = await html2canvas(pages[i], {
+          scale: 2, useCORS: true, logging: false,
+          backgroundColor: "#ffffff", windowWidth: 794,
+        });
+        const img = canvas.toDataURL("image/png");
+        const ih = (canvas.height * pw) / canvas.width;
+        if (i > 0) pdf.addPage();
+        const yOff = ih < ph ? (ph - ih) / 2 : 0;
+        pdf.addImage(img, "PNG", 0, yOff, pw, Math.min(ih, ph));
+      }
+      pdf.save(`Proposal for ${f.clientName || "Client"} ${f.systemCapacity} KW.pdf`);
+    } finally { setBusy(false); }
+  };
 
   return (
     <div className="min-h-screen bg-gray-950">
-
-      {/* Navbar */}
-      <nav className="border-b border-gray-800 px-6 h-16 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link
-            href="/"
-            className="flex items-center gap-2 text-sm text-gray-300 hover:text-white px-4 py-2 rounded-xl transition-all duration-300"
-            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
-          >
-            <span className="text-blue-400">←</span>
-            <span>Home</span>
-          </Link>
-          <div className="flex items-center gap-2">
-            <Image src="/logo.png" alt="OPS" width={28} height={28} className="object-contain" />
-            <span className="text-white font-medium">OPS — Quotation Generator</span>
-          </div>
+      <nav className="border-b border-gray-800 px-6 h-16 flex items-center gap-4">
+        <Link href="/"
+          className="flex items-center gap-2 text-sm text-gray-300 hover:text-white px-4 py-2 rounded-xl"
+          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
+          <span className="text-blue-400">←</span><span>Home</span>
+        </Link>
+        <div className="flex items-center gap-2">
+          <Image src="/logo.png" alt="OPS" width={28} height={28} className="object-contain" />
+          <span className="text-white font-medium">OPS — Quotation Generator</span>
         </div>
-        {/* <button
-          onClick={handleDownloadPDF}
-          className="flex items-center gap-2 text-sm font-medium bg-green-600 hover:bg-green-500 text-white px-5 py-2 rounded-xl transition-colors"
-        >
-          ⬇ Download PDF
-        </button> */}
       </nav>
 
       <div className="max-w-7xl mx-auto px-6 py-8 grid grid-cols-1 md:grid-cols-2 gap-8">
 
-        {/* LEFT — Form */}
-        <div
-          className="rounded-2xl p-6 h-fit md:sticky md:top-6"
+        {/* Form */}
+        <div className="rounded-2xl p-6 h-fit md:sticky md:top-6"
           style={{
             background: "rgba(255,255,255,0.03)",
             border: "1px solid rgba(255,255,255,0.08)",
             backdropFilter: "blur(20px)",
-          }}
-        >
+          }}>
           <h2 className="text-lg font-medium text-white mb-1">Fill Client Details</h2>
-          <p className="text-xs text-gray-500 mb-6">All calculations are automatic</p>
-
+          <p className="text-xs text-gray-500 mb-6">Preview updates live</p>
           <div className="flex flex-col gap-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                    <label className="block text-xs text-gray-400 mb-1.5">Proposal No.</label>
-                <input name="proposalNo" value={form.proposalNo} onChange={handleChange}
-                  className="w-full px-4 py-2.5 text-sm rounded-xl bg-gray-800 border border-gray-700 text-white outline-none focus:border-blue-500" />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-400 mb-1.5">Date</label>
-                <input type="date" name="date" value={form.date} onChange={handleChange}
-                    className="w-full px-2 py-2.5 text-xs rounded-xl bg-gray-800 border border-gray-700 text-white outline-none focus:border-blue-500" 
-                    style={{ maxWidth: "100%", boxSizing: "border-box" }}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs text-gray-400 mb-1.5">Client Name</label>
-              <input name="clientName" value={form.clientName} onChange={handleChange} placeholder="e.g. Dynamic Crest"
-                className="w-full px-4 py-2.5 text-sm rounded-xl bg-gray-800 border border-gray-700 text-white outline-none focus:border-blue-500 placeholder-gray-600" />
-            </div>
-
-            <div>
-              <label className="block text-xs text-gray-400 mb-1.5">Site Address</label>
-              <input name="siteAddress" value={form.siteAddress} onChange={handleChange} placeholder="e.g. Kalyan East, Maharashtra"
-                className="w-full px-4 py-2.5 text-sm rounded-xl bg-gray-800 border border-gray-700 text-white outline-none focus:border-blue-500 placeholder-gray-600" />
-            </div>
-
-            <div>
-              <label className="block text-xs text-gray-400 mb-1.5">Contact Person (Phone)</label>
-              <input name="contactPerson" value={form.contactPerson} onChange={handleChange} placeholder="e.g. 9594339594"
-                className="w-full px-4 py-2.5 text-sm rounded-xl bg-gray-800 border border-gray-700 text-white outline-none focus:border-blue-500 placeholder-gray-600" />
-            </div>
-
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs text-gray-400 mb-1.5">System Capacity (kWp)</label>
-                <input type="number" name="systemCapacity" value={form.systemCapacity} onChange={handleChange}
-                  className="w-full px-4 py-2.5 text-sm rounded-xl bg-gray-800 border border-gray-700 text-white outline-none focus:border-blue-500" />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-400 mb-1.5">Rate (Rs./Wp)</label>
-                <input type="number" name="ratePerWp" value={form.ratePerWp} onChange={handleChange}
-                  className="w-full px-4 py-2.5 text-sm rounded-xl bg-gray-800 border border-gray-700 text-white outline-none focus:border-blue-500" />
-              </div>
+              <Field label="Proposal No." name="proposalNo" value={f.proposalNo} onChange={onChange} />
+              <Field label="Date" name="date" type="date" value={f.date} onChange={onChange} />
             </div>
+            <Field label="Client / Society Name" name="clientName" value={f.clientName} onChange={onChange}
+              placeholder="e.g. Neelkanth Srushti Vaidyanath" />
+            <Field label="Site Address" name="siteAddress" value={f.siteAddress} onChange={onChange}
+              placeholder="e.g. Kalyan East, Maharashtra" />
+            <Field label="Contact Person / Phone" name="contactPerson" value={f.contactPerson} onChange={onChange}
+              placeholder="e.g. 9594339594" />
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="System Capacity (kWp)" name="systemCapacity" type="number"
+                value={f.systemCapacity} onChange={onChange} />
+              <Field label="Rate (Rs./kW incl. GST)" name="ratePerKw" type="number"
+                value={f.ratePerKw} onChange={onChange} />
+            </div>
+            <Field label="Valid Until" name="validUntil" type="date" value={f.validUntil} onChange={onChange} />
 
-            {/* Auto calculated */}
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 mt-2">
+            {/* Auto-calc */}
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 mt-1">
               <p className="text-xs text-gray-500 mb-3">Auto-calculated:</p>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 {[
-                  ["Panels needed", `${calc.panels} × 580 Wp`],
-                  ["Est. generation", `${calc.estGeneration.toLocaleString()} kWh/yr`],
-                  ["Price excl. GST", formatINR(calc.exGST)],
-                  ["GST @ 12%", formatINR(calc.gst)],
-                  ["Total incl. GST", formatINR(calc.total)],
-                  ["Timeline", calc.timeline],
-               ].map(([label, val]) => (
-                <div key={String(label)} className="contents">
-                    <div className="text-gray-400">{String(label)}:</div>
-                    <div className={`font-medium ${label === "Total incl. GST" ? "text-yellow-400" : "text-white"}`}>{String(val)}</div>
-                </div>
+                  ["Panels",          `${c.panels} × 580 Wp`],
+                  ["Est. generation", `${c.gen.toLocaleString("en-IN")} kWh/yr`],
+                  ["Excl. GST",       inr(c.exGst)],
+                  ["GST @ 8.9%",      inr(c.gst)],
+                  ["Net Total",       inr(c.net)],
+                  ["T-1 (30%)",       inr(c.t1)],
+                  ["T-2 (40%)",       inr(c.t2)],
+                  ["T-3 (20%)",       inr(c.t3)],
+                  ["T-4 (10%)",       inr(c.t4)],
+                ].map(([l, v]) => (
+                  <div key={l} className="contents">
+                    <div className="text-gray-400">{l}:</div>
+                    <div className={`font-medium ${l === "Net Total" ? "text-yellow-400" : "text-white"}`}>{v}</div>
+                  </div>
                 ))}
               </div>
             </div>
 
             <div className="flex gap-2">
-                <button
-                    onClick={handleDownloadPDF}
-                    className="flex-1 bg-green-600 hover:bg-green-500 text-white text-sm font-medium py-3 rounded-xl transition-colors"
-                >
-                    ⬇ Download PDF
-                </button>
-                <button
-                    onClick={() => window.print()}
-                    className="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium py-3 rounded-xl transition-colors"
-                >
-                    🖨 Print
-                </button>
+              <button onClick={downloadPDF} disabled={busy}
+                className="flex-1 bg-green-600 hover:bg-green-500 disabled:bg-gray-700 text-white text-sm font-medium py-3 rounded-xl transition-colors">
+                {busy ? "Generating…" : "⬇ Download PDF"}
+              </button>
+              <button onClick={() => window.print()}
+                className="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium py-3 rounded-xl transition-colors">
+                🖨 Print
+              </button>
             </div>
           </div>
         </div>
 
-        {/* RIGHT — Preview */}
-        <div className="overflow-auto rounded-2xl border border-gray-800" style={{ maxHeight: "90vh" }}>
-          <QuotationDocument form={form} calc={calc} />
+        {/* Preview */}
+        <div className="overflow-auto rounded-2xl border border-gray-800"
+          style={{ maxHeight: "90vh", background: "#e5e7eb" }}>
+          <div style={{ padding: 16 }}>
+            <QuotationDocument f={f} c={c} />
+          </div>
         </div>
-        <style>{`
-            @media print {
-                body * { visibility: hidden; }
-                #quotation-document, #quotation-document * { visibility: visible; }
-                #quotation-document {
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                }
-            }
-        `}</style>
       </div>
+
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          #quotation-document, #quotation-document * { visibility: visible; }
+          #quotation-document { position: fixed; top: 0; left: 0; width: 100%; }
+          .quote-page { page-break-after: always; margin: 0 !important; box-shadow: none !important; }
+        }
+      `}</style>
     </div>
   );
 }
