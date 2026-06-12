@@ -114,12 +114,12 @@ function PageHeader() {
           </div>
         </div>
       </div>
-      <div style={{
-        background: NAVY, color: "white",
-        padding: "10px 16px", borderRadius: 3, textAlign: "center", minWidth: 110,
-      }}>
-        <div style={{ fontSize: 7.5, letterSpacing: 1.5 }}>TECHNO-COMMERCIAL</div>
-        <div style={{ color: ACCENT, fontWeight: 700, fontSize: 13, marginTop: 2 }}>PROPOSAL</div>
+      <div>
+        <img
+            src="/waaree_logo.png"
+            alt="Waaree"
+            style={{ height: 48, objectFit: "contain" }}
+        />
       </div>
     </div>
   );
