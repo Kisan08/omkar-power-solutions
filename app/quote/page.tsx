@@ -13,6 +13,7 @@ interface QuoteForm {
   contactPerson: string;
   systemCapacity: number;
   ratePerKw: number;
+  acCableSpec: string; // ← add this
 }
 
 /* ─── Constants ─── */
@@ -515,7 +516,72 @@ function P5({ f }: { f: QuoteForm }) {
   return (
     <>
       <NavBar title="Appendix" sub="Technical details & scope documentation" />
-
+        <NavBar title="Additional Technical Specifications" />
+        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 8 }}>
+        <thead>
+            <tr>
+            <th style={{ ...TH, width: "18%" }}>Item</th>
+            <th style={{ ...TH, width: "30%" }}>Description</th>
+            <th style={{ ...TH, width: "10%", textAlign: "center" }}>Unit</th>
+            <th style={{ ...TH, width: "12%", textAlign: "center" }}>Qty</th>
+            <th style={TH}>Make / Brand</th>
+            </tr>
+        </thead>
+        <tbody>
+            {/* AC Cable — EDITABLE */}
+            <tr style={{ background: "#fff" }}>
+            <td style={{ ...TD, fontWeight: 700, color: NAVY }}>AC Cable</td>
+            <td style={{ ...TD, color: BLUE, fontWeight: 500 }}>{f.acCableSpec || "—"}</td>
+            <td style={{ ...TD, textAlign: "center" }}>Meter</td>
+            <td style={{ ...TD, textAlign: "center" }}>As per Design</td>
+            <td style={TD}>Havells / RR / Polycab</td>
+            </tr>
+            {/* ACDB — fixed */}
+            <tr style={{ background: "#F5F9FF" }}>
+            <td style={{ ...TD, fontWeight: 700, color: NAVY }}>ACDB</td>
+            <td style={TD}>MCB/MCCB/ACB with protection as per standards with MCB</td>
+            <td style={{ ...TD, textAlign: "center" }}>Nos</td>
+            <td style={{ ...TD, textAlign: "center" }}>As per Design</td>
+            <td style={{ ...TD, fontSize: 9.5 }}>
+                PHOENIXCONTACT / MCB SCHNEIDER / C&S / L&T / ABB / GE / SIEMENS Equivalent,
+                SPDDEHN / OBO METAL ENCLOSURE ACDB SPD HAVELLS / PHOENIX CONTACT WITH NVR
+            </td>
+            </tr>
+            {/* DCDB — fixed */}
+            <tr style={{ background: "#fff" }}>
+            <td style={{ ...TD, fontWeight: 700, color: NAVY }}>DCDB</td>
+            <td style={TD}>MCB/MCCB/ACB with protection as per standards with MCB</td>
+            <td style={{ ...TD, textAlign: "center" }}>Nos</td>
+            <td style={{ ...TD, textAlign: "center" }}>As per Design</td>
+            <td style={{ ...TD, fontSize: 9.5 }}>
+                PHOENIXCONTACT / MCB SCHNEIDER / C&S / L&T / ABB / GE / SIEMENS Equivalent,
+                SPDDEHN / OBO METAL ENCLOSURE ACDB SPD HAVELLS / PHOENIX CONTACT WITH NVR
+            </td>
+            </tr>
+            {/* Earthing — fixed */}
+            <tr style={{ background: "#F5F9FF" }}>
+            <td style={{ ...TD, fontWeight: 700, color: NAVY }}>Earthing</td>
+            <td style={{ ...TD, fontSize: 9.5 }}>
+                3m 17.2mm Dia 250 micron with 12.5kg Chemical Compound Bag with Chamber cover
+            </td>
+            <td style={{ ...TD, textAlign: "center" }}>Nos</td>
+            <td style={{ ...TD, textAlign: "center" }}>As per Design</td>
+            <td style={TD}>Elink / Powertrac / Equivalent</td>
+            </tr>
+            {/* Lightning Arrestor — fixed */}
+            <tr style={{ background: "#fff" }}>
+            <td style={{ ...TD, fontWeight: 700, color: NAVY }}>Lightning Arrestor</td>
+            <td style={{ ...TD, fontSize: 9.5 }}>
+                Conventional LA — Copper Bonded 5 Spike Lightning Arrestor as per IEC-62305 &amp; IS 2309,
+                250µ Multi Point Solid Spike Lightning Arrestor Pipe Dia: 14.2mm, Length: 1.2Mtr,
+                1 set along with Fasteners, clamps, and insulators.
+            </td>
+            <td style={{ ...TD, textAlign: "center" }}>Nos</td>
+            <td style={{ ...TD, textAlign: "center" }}>As per Design</td>
+            <td style={TD}>Elink / Powertrac / Equivalent</td>
+            </tr>
+        </tbody>
+        </table>
       <NavBar title="Bill of Material" sub="Scope of supply & service" />
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
@@ -675,15 +741,16 @@ export default function QuotePage() {
   const valid = new Date(); valid.setDate(valid.getDate() + 30);
 
   const [f, setF] = useState<QuoteForm>({
-    proposalNo: `OPS-${new Date().getFullYear()}-001`,
-    date: today,
-    validUntil: valid.toISOString().split("T")[0],
-    clientName: "",
-    siteAddress: "",
-    contactPerson: "",
-    systemCapacity: 15,
-    ratePerKw: 59833,
-  });
+  proposalNo: `OPS-${new Date().getFullYear()}-001`,
+  date: today,
+  validUntil: valid.toISOString().split("T")[0],
+  clientName: "",
+  siteAddress: "",
+  contactPerson: "",
+  systemCapacity: 15,
+  ratePerKw: 59833,
+  acCableSpec: "4C x 25 sq. mm AL Armoured as per Design", // ← add this
+});
 
   const [busy, setBusy] = useState(false);
   const c = compute(f);
@@ -765,7 +832,13 @@ export default function QuotePage() {
                 value={f.ratePerKw} onChange={onChange} />
             </div>
             <Field label="Valid Until" name="validUntil" type="date" value={f.validUntil} onChange={onChange} />
-
+            <Field
+            label="AC Cable Spec"
+            name="acCableSpec"
+            value={f.acCableSpec}
+            onChange={onChange}
+            placeholder="e.g. 4C x 25 sq. mm AL Armoured as per Design"
+            />
             {/* Auto-calc */}
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 mt-1">
               <p className="text-xs text-gray-500 mb-3">Auto-calculated:</p>
