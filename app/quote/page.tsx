@@ -247,17 +247,42 @@ function P1() {
             fontSize: 9.5, fontWeight: 700, color: NAVY,
             letterSpacing: 0.5, marginBottom: 10, textAlign: "center",
         }}>
-            OUR PANEL PARTNERS
+            OUR BRAND PARTNERS
         </div>
+        
         <div style={{
             display: "flex", alignItems: "center",
-            justifyContent: "center", gap: 32,
+            justifyContent: "center", gap: 3,
         }}>
-            <img src="/waaree_logo.png"    alt="Waaree"          style={{ height: 32, objectFit: "contain" }} />
-            <img src="/adani_solar.png"    alt="Adani Solar"     style={{ height: 32, objectFit: "contain" }} />
-            <img src="/premier_energies.png" alt="Premier Energies" style={{ height: 32, objectFit: "contain" }} />
+            <img src="/waaree_logo.png"    alt="Waaree"          style={{ height: 60, objectFit: "contain" }} />
+            <img src="/adani_solar.png"    alt="Adani Solar"     style={{ height: 60, objectFit: "contain" }} />
+            <img src="/premier_energies.png" alt="Premier Energies" style={{ height: 60, objectFit: "contain" }} />
         </div>
       </div>
+      <div style={{
+  marginTop: 10, border: "1px solid #d0d7e2",
+  borderRadius: 3, padding: "10px 16px",
+  background: "#FAFCFF",
+}}>
+  <div style={{
+    fontSize: 9.5, fontWeight: 700, color: NAVY,
+    letterSpacing: 0.5, marginBottom: 10, textAlign: "center",
+  }}>
+    OUR CLIENTS
+  </div>
+  <div style={{
+    display: "flex", alignItems: "center",
+    justifyContent: "center", gap: 20, flexWrap: "wrap",
+  }}>
+    <img src="/client_hiranandani.jpeg"  alt="House of Hiranandani" style={{ height: 100, objectFit: "contain" }} />
+    <img src="/client_mahavir.jpeg"      alt="Mahavir Kalpavruksha" style={{ height: 48, objectFit: "contain" }} />
+    <img src="/client_jpinfra.jpeg"      alt="JP Infra"             style={{ height: 60, objectFit: "contain" }} />
+    <img src="/client_lodha.jpeg"        alt="Lodha"                style={{ height: 48, objectFit: "contain" }} />
+    <img src="/client_triveni.jpeg"      alt="Triveni"              style={{ height: 100, objectFit: "contain" }} />
+    <img src="/client_regency.jpeg"      alt="Regency Antam"       style={{ height: 80, objectFit: "contain" }} />
+    <img src="/client_mohan.jpeg"        alt="Mohan Group"          style={{ height: 100, objectFit: "contain" }} />
+  </div>
+</div>
             </>
   );
 }
