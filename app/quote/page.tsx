@@ -238,7 +238,27 @@ function P1() {
           </tr>
         </tbody>
       </table>
-    </>
+      <div style={{
+        marginTop: 12, border: "1px solid #d0d7e2",
+        borderRadius: 3, padding: "10px 16px",
+        background: "#FAFCFF",
+        }}>
+        <div style={{
+            fontSize: 9.5, fontWeight: 700, color: NAVY,
+            letterSpacing: 0.5, marginBottom: 10, textAlign: "center",
+        }}>
+            OUR PANEL PARTNERS
+        </div>
+        <div style={{
+            display: "flex", alignItems: "center",
+            justifyContent: "center", gap: 32,
+        }}>
+            <img src="/waaree_logo.png"    alt="Waaree"          style={{ height: 32, objectFit: "contain" }} />
+            <img src="/adani_solar.png"    alt="Adani Solar"     style={{ height: 32, objectFit: "contain" }} />
+            <img src="/premier_energies.png" alt="Premier Energies" style={{ height: 32, objectFit: "contain" }} />
+        </div>
+      </div>
+            </>
   );
 }
 
