@@ -13,7 +13,8 @@ interface QuoteForm {
   contactPerson: string;
   systemCapacity: number;
   ratePerKw: number;
-  acCableSpec: string; // ← add this
+  acCableSpec: string;
+  subsidy: number; // ← add this
 }
 
 /* ─── Constants ─── */
@@ -39,16 +40,19 @@ const fmtDate = (s: string) => {
 };
 
 function compute(f: QuoteForm) {
-  const wp     = f.systemCapacity * 1000;
-  const panels = Math.ceil(wp / PANEL_WP);
-  const instWp = panels * PANEL_WP;
-  const gen    = Math.round(YIELD_KWH * f.systemCapacity);
-  const net    = Math.round((f.systemCapacity * f.ratePerKw) / 500) * 500;
-  const exGst  = Math.round(net / (1 + GST_RATE));
-  const gst    = net - exGst;
-  const rateExGst = Math.round(exGst / instWp); // ← add this
+  const wp        = f.systemCapacity * 1000;
+  const panels    = Math.ceil(wp / PANEL_WP);
+  const instWp    = panels * PANEL_WP;
+  const gen       = Math.round(YIELD_KWH * f.systemCapacity);
+  const net       = Math.round((f.systemCapacity * f.ratePerKw) / 500) * 500;
+  const exGst     = Math.round(net / (1 + GST_RATE));
+  const gst       = net - exGst;
+  const rateInclGst = Math.round((net / instWp) * 100) / 100;
+  const rateExGst   = Math.round((exGst / instWp) * 100) / 100;
+  const rateGst     = Math.round((rateInclGst - rateExGst) * 100) / 100;
   return {
-    wp, panels, instWp, gen, exGst, gst, net, rateExGst,
+    wp, panels, instWp, gen, exGst, gst, net,
+    rateInclGst, rateExGst, rateGst,
     t1: Math.round(net * 0.30),
     t2: Math.round(net * 0.40),
     t3: Math.round(net * 0.20),
@@ -376,6 +380,7 @@ function P2({ f, c }: { f: QuoteForm; c: Calc }) {
 
 /* ─── PAGE 3 — Pricing ─── */
 function P3({ f, c }: { f: QuoteForm; c: Calc }) {
+  const netAfterSubsidy = Math.max(0, c.net - f.subsidy);
   return (
     <>
       <NavBar title="Pricing" sub="Investment summary" />
@@ -389,15 +394,17 @@ function P3({ f, c }: { f: QuoteForm; c: Calc }) {
         <tbody>
           <tr>
             <td style={{ ...LB, fontWeight: 600 }}>System Capacity</td>
-            <td style={TD}>{c.panels} Panels × 580 Wp = {c.instWp.toLocaleString("en-IN")} Wp</td>
+            <td style={TD}>
+              {c.panels} Panels × 580 Wp = {c.instWp.toLocaleString("en-IN")} Wp
+            </td>
           </tr>
           <tr>
             <td style={{ ...LB, fontWeight: 600 }}>Rate (Rs. / Wp) excl. GST</td>
-            <td style={TD}>Rs. {c.rateExGst.toLocaleString("en-IN")} per Wp (excl. GST)</td>
-        </tr>
+            <td style={TD}>Rs. {c.rateExGst} per Wp (excl. GST)</td>
+          </tr>
           <tr>
-            <td style={{ ...LB, fontWeight: 600 }}>Total (excl. GST @ 8.9%)</td>
-            <td style={{ ...TD, fontWeight: 700 }}>{inr(c.exGst)}</td>
+            <td style={{ ...LB, fontWeight: 600 }}>GST Rate (Rs. / Wp)</td>
+            <td style={TD}>Rs. {c.rateGst} per Wp (GST component)</td>
           </tr>
           <tr>
             <td style={{ ...LB, fontWeight: 600 }}>Total (excl. GST @ 8.9%)</td>
@@ -415,6 +422,26 @@ function P3({ f, c }: { f: QuoteForm; c: Calc }) {
               {inr(c.net)}
             </td>
           </tr>
+          {f.subsidy > 0 && (
+            <>
+              <tr style={{ background: "#E6F4FF" }}>
+                <td style={{ ...LB, fontWeight: 600, color: "#0369a1" }}>
+                  Less: Govt. of India Subsidy (PM Surya Ghar)
+                </td>
+                <td style={{ ...TD, fontWeight: 700, color: "#0369a1" }}>
+                  − {inr(f.subsidy)}
+                </td>
+              </tr>
+              <tr style={{ background: "#E6FFEC" }}>
+                <td style={{ padding: "10px 12px", border: "1px solid #d0d7e2", fontWeight: 700, fontSize: 13, color: "#15803d" }}>
+                  NET PAYABLE AFTER SUBSIDY
+                </td>
+                <td style={{ padding: "10px 12px", border: "1px solid #d0d7e2", fontWeight: 700, fontSize: 15, color: "#15803d" }}>
+                  {inr(netAfterSubsidy)}
+                </td>
+              </tr>
+            </>
+          )}
         </tbody>
       </table>
 
@@ -800,6 +827,7 @@ export default function QuotePage() {
   systemCapacity: 15,
   ratePerKw: 59833,
   acCableSpec: "4C x 25 sq. mm AL Armoured as per Design", // ← add this
+  subsidy: 0, // ← add this
 });
 
   const [busy, setBusy] = useState(false);
@@ -880,6 +908,14 @@ export default function QuotePage() {
                 value={f.systemCapacity} onChange={onChange} />
               <Field label="Rate (Rs./kW incl. GST)" name="ratePerKw" type="number"
                 value={f.ratePerKw} onChange={onChange} />
+                <Field
+                    label="Govt. Subsidy (Rs.) — 0 if none"
+                    name="subsidy"
+                    type="number"
+                    value={f.subsidy}
+                    onChange={onChange}
+                    placeholder="e.g. 270000"
+                    />
             </div>
             <Field label="Valid Until" name="validUntil" type="date" value={f.validUntil} onChange={onChange} />
             <Field
@@ -924,42 +960,80 @@ export default function QuotePage() {
             </div>
 
             <button
-            onClick={() => {
-                const msg = `Hello,
+  onClick={async () => {
+    setBusy(true);
+    try {
+      const html2canvas = (await import("html2canvas")).default;
+      const jsPDF = (await import("jspdf")).default;
+      const pages = document.querySelectorAll<HTMLElement>(".quote-page");
+      if (!pages.length) return;
 
-            Greetings from *Omkar Power Solutions*!
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pw = pdf.internal.pageSize.getWidth();
+      const ph = pdf.internal.pageSize.getHeight();
 
-            We are pleased to share the Techno-Commercial Proposal for your reference:
+      for (let i = 0; i < pages.length; i++) {
+        const canvas = await html2canvas(pages[i], {
+          scale: 2, useCORS: true, logging: false,
+          backgroundColor: "#ffffff", windowWidth: 794,
+        });
+        const img = canvas.toDataURL("image/png");
+        const ih = (canvas.height * pw) / canvas.width;
+        if (i > 0) pdf.addPage();
+        const yOff = ih < ph ? (ph - ih) / 2 : 0;
+        pdf.addImage(img, "PNG", 0, yOff, pw, Math.min(ih, ph));
+      }
 
-            👤 *Client:* ${f.clientName || "—"}
-            📍 *Site:* ${f.siteAddress || "—"}
-            ⚡ *System:* ${f.systemCapacity} kWp (${c.panels} Panels × 580 Wp)
-            💰 *Net Total (incl. GST):* ${inr(c.net)}
-            📅 *Valid Until:* ${fmtDate(f.validUntil)}
+      // Convert PDF to blob and share via Web Share API
+      const pdfBlob = pdf.output("blob");
+      const fileName = `Proposal_${f.clientName || "Client"}_${f.systemCapacity}KW.pdf`;
+      const file = new File([pdfBlob], fileName, { type: "application/pdf" });
 
-            Please find the detailed proposal at:
-            🌐 https://onesolarpower.in/quote
+      const msg = `Hello ${f.clientName || ""},
 
-            For any queries, feel free to reach out:
-            📞 8452035102
-            ✉ omkarpowersolutions16@gmail.com
+Greetings from *Omkar Power Solutions*! ☀
 
-            Thank you for considering Omkar Power Solutions — Powering a Greener Tomorrow ☀`;
+Please find attached the Techno-Commercial Proposal for your reference.
 
-                const encoded = encodeURIComponent(msg);
-                const phone = f.contactPerson.replace(/\D/g, "");
-                const url = phone.length >= 10
-                ? `https://wa.me/91${phone.slice(-10)}?text=${encoded}`
-                : `https://wa.me/?text=${encoded}`;
-                window.open(url, "_blank");
-            }}
-            className="w-full bg-[#25D366] hover:bg-[#1ebe5d] text-white text-sm font-medium py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
-            >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
-                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-            </svg>
-            Share on WhatsApp
-            </button>
+*Proposal Details:*
+⚡ System: ${f.systemCapacity} kWp (${c.panels} Panels × 580 Wp)
+💰 Net Total: ${inr(c.net)}${f.subsidy > 0 ? `\n🏛 After Subsidy: ${inr(Math.max(0, c.net - f.subsidy))}` : ""}
+📅 Valid Until: ${fmtDate(f.validUntil)}
+
+For any queries:
+📞 8452035102
+✉ omkarpowersolutions16@gmail.com
+
+Thank you for choosing Omkar Power Solutions — *Powering a Greener Tomorrow* 🌱`;
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        // Mobile — shares PDF file directly like MSEB
+        await navigator.share({
+          files: [file],
+          text: msg,
+        });
+      } else {
+        // Desktop fallback — download PDF + open WhatsApp web with message
+        pdf.save(fileName);
+        const encoded = encodeURIComponent(msg);
+        const phone = f.contactPerson.replace(/\D/g, "");
+        const url = phone.length >= 10
+          ? `https://wa.me/91${phone.slice(-10)}?text=${encoded}`
+          : `https://wa.me/?text=${encoded}`;
+        window.open(url, "_blank");
+      }
+    } finally {
+      setBusy(false);
+    }
+  }}
+  disabled={busy}
+  className="w-full bg-[#25D366] hover:bg-[#1ebe5d] disabled:bg-gray-700 text-white text-sm font-medium py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+>
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+  </svg>
+  {busy ? "Preparing…" : "📤 Share on WhatsApp"}
+</button>
           </div>
         </div>
 
