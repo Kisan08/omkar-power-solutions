@@ -969,35 +969,32 @@ export default function QuotePage() {
 
             <button
   onClick={async () => {
-    setBusy(true);
-    try {
-      const html2canvas = (await import("html2canvas")).default;
-      const jsPDF = (await import("jspdf")).default;
-      const pages = document.querySelectorAll<HTMLElement>(".quote-page");
-      if (!pages.length) return;
+  setBusy(true);
+  try {
+    const html2canvas = (await import("html2canvas")).default;
+    const jsPDF = (await import("jspdf")).default;
+    const pages = document.querySelectorAll<HTMLElement>(".quote-page");
+    if (!pages.length) return;
 
-      const pdf = new jsPDF("p", "mm", "a4");
-      const pw = pdf.internal.pageSize.getWidth();
-      const ph = pdf.internal.pageSize.getHeight();
+    const pdf = new jsPDF("p", "mm", "a4");
+    const pw = pdf.internal.pageSize.getWidth();
+    const ph = pdf.internal.pageSize.getHeight();
 
-      for (let i = 0; i < pages.length; i++) {
-        const canvas = await html2canvas(pages[i], {
-          scale: 2, useCORS: true, logging: false,
-          backgroundColor: "#ffffff", windowWidth: 794,
-        });
-        const img = canvas.toDataURL("image/png");
-        const ih = (canvas.height * pw) / canvas.width;
-        if (i > 0) pdf.addPage();
-        const yOff = ih < ph ? (ph - ih) / 2 : 0;
-        pdf.addImage(img, "PNG", 0, yOff, pw, Math.min(ih, ph));
-      }
+    for (let i = 0; i < pages.length; i++) {
+      const canvas = await html2canvas(pages[i], {
+        scale: 2, useCORS: true, logging: false,
+        backgroundColor: "#ffffff", windowWidth: 794,
+      });
+      const img = canvas.toDataURL("image/png");
+      const ih = (canvas.height * pw) / canvas.width;
+      if (i > 0) pdf.addPage();
+      const yOff = ih < ph ? (ph - ih) / 2 : 0;
+      pdf.addImage(img, "PNG", 0, yOff, pw, Math.min(ih, ph));
+    }
 
-      // Convert PDF to blob and share via Web Share API
-      const pdfBlob = pdf.output("blob");
-      const fileName = `Proposal_${f.clientName || "Client"}_${f.systemCapacity}KW.pdf`;
-      const file = new File([pdfBlob], fileName, { type: "application/pdf" });
+    const fileName = `Proposal_${f.clientName || "Client"}_${f.systemCapacity}KW.pdf`;
 
-      const msg = `Hello ${f.clientName || ""},
+    const msg = `Hello ${f.clientName || ""},
 
 Greetings from *Omkar Power Solutions*! ☀
 
@@ -1005,7 +1002,8 @@ Please find attached the Techno-Commercial Proposal for your reference.
 
 *Proposal Details:*
 ⚡ System: ${f.systemCapacity} kWp (${c.panels} Panels × 580 Wp)
-💰 Net Total: ${inr(c.net)}${c.subsidy > 0 ? `\n🏛 Govt. Subsidy: − ${inr(c.subsidy)}\n✅ Net Payable: ${inr(c.netAfterSubsidy)}` : ""}📅 Valid Until: ${fmtDate(f.validUntil)}
+💰 Net Total: ${inr(c.net)}${c.subsidy > 0 ? `\n🏛 Govt. Subsidy: − ${inr(c.subsidy)}\n✅ Net Payable: ${inr(c.netAfterSubsidy)}` : ""}
+📅 Valid Until: ${fmtDate(f.validUntil)}
 
 For any queries:
 📞 8452035102
@@ -1013,26 +1011,34 @@ For any queries:
 
 Thank you for choosing Omkar Power Solutions — *Powering a Greener Tomorrow* 🌱`;
 
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        // Mobile — shares PDF file directly like MSEB
-        await navigator.share({
-          files: [file],
-          text: msg,
-        });
-      } else {
-        // Desktop fallback — download PDF + open WhatsApp web with message
-        pdf.save(fileName);
-        const encoded = encodeURIComponent(msg);
-        const phone = f.contactPerson.replace(/\D/g, "");
-        const url = phone.length >= 10
-          ? `https://wa.me/91${phone.slice(-10)}?text=${encoded}`
-          : `https://wa.me/?text=${encoded}`;
-        window.open(url, "_blank");
-      }
-    } finally {
-      setBusy(false);
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const pdfBlob = pdf.output("blob");
+    const file = new File([pdfBlob], fileName, { type: "application/pdf" });
+
+    if (isMobile && navigator.canShare && navigator.canShare({ files: [file] })) {
+      // Mobile — native share sheet with PDF file
+      await navigator.share({ files: [file], text: msg });
+    } else {
+      // Desktop — step 1: download PDF, step 2: open WhatsApp with message
+      pdf.save(fileName);
+
+      // Small delay so PDF download starts before WhatsApp opens
+      await new Promise(res => setTimeout(res, 1000));
+
+      const encoded = encodeURIComponent(msg);
+      const phone = f.contactPerson.replace(/\D/g, "");
+      const url = phone.length >= 10
+        ? `https://wa.me/91${phone.slice(-10)}?text=${encoded}`
+        : `https://wa.me/?text=${encoded}`;
+      window.open(url, "_blank");
     }
-  }}
+  } catch (err) {
+    console.error("Share error:", err);
+    alert("Could not share. Please download the PDF and send manually.");
+  } finally {
+    setBusy(false);
+  }
+}}
   disabled={busy}
   className="w-full bg-[#25D366] hover:bg-[#1ebe5d] disabled:bg-gray-700 text-white text-sm font-medium py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
 >
