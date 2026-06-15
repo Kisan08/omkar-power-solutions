@@ -46,8 +46,9 @@ function compute(f: QuoteForm) {
   const net    = Math.round((f.systemCapacity * f.ratePerKw) / 500) * 500;
   const exGst  = Math.round(net / (1 + GST_RATE));
   const gst    = net - exGst;
+  const rateExGst = Math.round(exGst / instWp); // ← add this
   return {
-    wp, panels, instWp, gen, exGst, gst, net,
+    wp, panels, instWp, gen, exGst, gst, net, rateExGst,
     t1: Math.round(net * 0.30),
     t2: Math.round(net * 0.40),
     t3: Math.round(net * 0.20),
@@ -391,8 +392,12 @@ function P3({ f, c }: { f: QuoteForm; c: Calc }) {
             <td style={TD}>{c.panels} Panels × 580 Wp = {c.instWp.toLocaleString("en-IN")} Wp</td>
           </tr>
           <tr>
-            <td style={{ ...LB, fontWeight: 600 }}>Rate (Rs. / kW)</td>
-            <td style={TD}>Rs. {f.ratePerKw.toLocaleString("en-IN")} per kW (incl. GST)</td>
+            <td style={{ ...LB, fontWeight: 600 }}>Rate (Rs. / Wp) excl. GST</td>
+            <td style={TD}>Rs. {c.rateExGst.toLocaleString("en-IN")} per Wp (excl. GST)</td>
+        </tr>
+          <tr>
+            <td style={{ ...LB, fontWeight: 600 }}>Total (excl. GST @ 8.9%)</td>
+            <td style={{ ...TD, fontWeight: 700 }}>{inr(c.exGst)}</td>
           </tr>
           <tr>
             <td style={{ ...LB, fontWeight: 600 }}>Total (excl. GST @ 8.9%)</td>
