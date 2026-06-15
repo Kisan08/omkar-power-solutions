@@ -14,7 +14,7 @@ interface QuoteForm {
   systemCapacity: number;
   ratePerKw: number;
   acCableSpec: string;
-  subsidy: number; // ← add this
+  subsidyPerKw: number; // ← add this
 }
 
 /* ─── Constants ─── */
@@ -40,19 +40,22 @@ const fmtDate = (s: string) => {
 };
 
 function compute(f: QuoteForm) {
-  const wp        = f.systemCapacity * 1000;
-  const panels    = Math.ceil(wp / PANEL_WP);
-  const instWp    = panels * PANEL_WP;
-  const gen       = Math.round(YIELD_KWH * f.systemCapacity);
-  const net       = Math.round((f.systemCapacity * f.ratePerKw) / 500) * 500;
-  const exGst     = Math.round(net / (1 + GST_RATE));
-  const gst       = net - exGst;
+  const wp          = f.systemCapacity * 1000;
+  const panels      = Math.ceil(wp / PANEL_WP);
+  const instWp      = panels * PANEL_WP;
+  const gen         = Math.round(YIELD_KWH * f.systemCapacity);
+  const net         = Math.round((f.systemCapacity * f.ratePerKw) / 500) * 500;
+  const exGst       = Math.round(net / (1 + GST_RATE));
+  const gst         = net - exGst;
   const rateInclGst = Math.round((net / instWp) * 100) / 100;
   const rateExGst   = Math.round((exGst / instWp) * 100) / 100;
   const rateGst     = Math.round((rateInclGst - rateExGst) * 100) / 100;
+  const subsidy     = f.subsidyPerKw * f.systemCapacity; // ← auto calculated
+  const netAfterSubsidy = Math.max(0, net - subsidy);
   return {
     wp, panels, instWp, gen, exGst, gst, net,
     rateInclGst, rateExGst, rateGst,
+    subsidy, netAfterSubsidy,
     t1: Math.round(net * 0.30),
     t2: Math.round(net * 0.40),
     t3: Math.round(net * 0.20),
@@ -380,7 +383,7 @@ function P2({ f, c }: { f: QuoteForm; c: Calc }) {
 
 /* ─── PAGE 3 — Pricing ─── */
 function P3({ f, c }: { f: QuoteForm; c: Calc }) {
-  const netAfterSubsidy = Math.max(0, c.net - f.subsidy);
+  const netAfterSubsidy = Math.max(0, c.net - c.subsidy);
   return (
     <>
       <NavBar title="Pricing" sub="Investment summary" />
@@ -422,14 +425,14 @@ function P3({ f, c }: { f: QuoteForm; c: Calc }) {
               {inr(c.net)}
             </td>
           </tr>
-          {f.subsidy > 0 && (
+          {c.subsidy > 0 && (
             <>
               <tr style={{ background: "#E6F4FF" }}>
                 <td style={{ ...LB, fontWeight: 600, color: "#0369a1" }}>
                   Less: Govt. of India Subsidy (PM Surya Ghar)
                 </td>
                 <td style={{ ...TD, fontWeight: 700, color: "#0369a1" }}>
-                  − {inr(f.subsidy)}
+                  − {inr(c.subsidy)}
                 </td>
               </tr>
               <tr style={{ background: "#E6FFEC" }}>
@@ -827,7 +830,7 @@ export default function QuotePage() {
   systemCapacity: 15,
   ratePerKw: 59833,
   acCableSpec: "4C x 25 sq. mm AL Armoured as per Design", // ← add this
-  subsidy: 0, // ← add this
+  subsidyPerKw: 0, // ← add this
 });
 
   const [busy, setBusy] = useState(false);
@@ -910,9 +913,9 @@ export default function QuotePage() {
                 value={f.ratePerKw} onChange={onChange} />
                 <Field
                     label="Govt. Subsidy (Rs.) — 0 if none"
-                    name="subsidy"
+                    name="subsidyPerKw"
                     type="number"
-                    value={f.subsidy}
+                    value={f.subsidyPerKw}
                     onChange={onChange}
                     placeholder="e.g. 270000"
                     />
@@ -935,6 +938,10 @@ export default function QuotePage() {
                   ["Excl. GST",       inr(c.exGst)],
                   ["GST @ 8.9%",      inr(c.gst)],
                   ["Net Total",       inr(c.net)],
+                  ...(f.subsidyPerKw > 0 ? [
+                  ["Subsidy", `− ${inr(c.subsidy)}`],
+                  ["Net payable", inr(c.netAfterSubsidy)],
+                  ] as [string, string][] : []),
                   ["T-1 (30%)",       inr(c.t1)],
                   ["T-2 (40%)",       inr(c.t2)],
                   ["T-3 (20%)",       inr(c.t3)],
@@ -943,6 +950,7 @@ export default function QuotePage() {
                   <div key={l} className="contents">
                     <div className="text-gray-400">{l}:</div>
                     <div className={`font-medium ${l === "Net Total" ? "text-yellow-400" : "text-white"}`}>{v}</div>
+                    
                   </div>
                 ))}
               </div>
@@ -997,8 +1005,7 @@ Please find attached the Techno-Commercial Proposal for your reference.
 
 *Proposal Details:*
 ⚡ System: ${f.systemCapacity} kWp (${c.panels} Panels × 580 Wp)
-💰 Net Total: ${inr(c.net)}${f.subsidy > 0 ? `\n🏛 After Subsidy: ${inr(Math.max(0, c.net - f.subsidy))}` : ""}
-📅 Valid Until: ${fmtDate(f.validUntil)}
+💰 Net Total: ${inr(c.net)}${c.subsidy > 0 ? `\n🏛 Govt. Subsidy: − ${inr(c.subsidy)}\n✅ Net Payable: ${inr(c.netAfterSubsidy)}` : ""}📅 Valid Until: ${fmtDate(f.validUntil)}
 
 For any queries:
 📞 8452035102
