@@ -40,21 +40,17 @@ const fmtDate = (s: string) => {
 };
 
 function compute(f: QuoteForm) {
-  const wp          = f.systemCapacity * 1000;
-  const panels      = Math.ceil(wp / PANEL_WP);
-  const instWp      = panels * PANEL_WP;
-  const gen         = Math.round(YIELD_KWH * f.systemCapacity);
-  const net         = Math.round((f.systemCapacity * f.ratePerKw) / 500) * 500;
-  const exGst       = Math.round(net / (1 + GST_RATE));
-  const gst         = net - exGst;
-  const rateInclGst = Math.round((net / instWp) * 100) / 100;
-  const rateExGst   = Math.round((exGst / instWp) * 100) / 100;
-  const rateGst     = Math.round((rateInclGst - rateExGst) * 100) / 100;
-  const subsidy     = f.subsidyPerKw * f.systemCapacity; // ← auto calculated
+  const wp              = f.systemCapacity * 1000;
+  const panels          = Math.ceil(wp / PANEL_WP);
+  const instWp          = panels * PANEL_WP;
+  const gen             = Math.round(YIELD_KWH * f.systemCapacity);
+  const exGst           = instWp * f.ratePerKw;
+  const gst             = Math.round(exGst * GST_RATE);
+  const net             = exGst + gst;
+  const subsidy         = f.subsidyPerKw * f.systemCapacity;
   const netAfterSubsidy = Math.max(0, net - subsidy);
   return {
     wp, panels, instWp, gen, exGst, gst, net,
-    rateInclGst, rateExGst, rateGst,
     subsidy, netAfterSubsidy,
     t1: Math.round(net * 0.30),
     t2: Math.round(net * 0.40),
@@ -383,71 +379,101 @@ function P2({ f, c }: { f: QuoteForm; c: Calc }) {
 
 /* ─── PAGE 3 — Pricing ─── */
 function P3({ f, c }: { f: QuoteForm; c: Calc }) {
-  const netAfterSubsidy = Math.max(0, c.net - c.subsidy);
+  const ratePerWp = Math.round(c.exGst / (c.panels * PANEL_WP) * 100) / 100;
+  const inclGst = c.net;
+  const subsidy = f.subsidyPerKw * f.systemCapacity;
+  const netCost = Math.max(0, inclGst - subsidy);
+
   return (
     <>
-      <NavBar title="Pricing" sub="Investment summary" />
+      <NavBar title={`Pricing Breakdown — ${f.systemCapacity} kWp (CAPEX)`} />
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
           <tr>
-            <th style={{ ...TH, width: "55%" }}>DESCRIPTION</th>
-            <th style={TH}>AMOUNT</th>
+            <th style={{ ...TH, width: "6%",  textAlign: "center" }}>#</th>
+            <th style={TH}>Item</th>
+            <th style={{ ...TH, width: "30%" }}>Rate</th>
+            <th style={{ ...TH, width: "22%", textAlign: "right" }}>Amount</th>
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td style={{ ...LB, fontWeight: 600 }}>System Capacity</td>
-            <td style={TD}>
-              {c.panels} Panels × 580 Wp = {c.instWp.toLocaleString("en-IN")} Wp
+          {/* Row 1 */}
+          <tr style={{ background: "#fff" }}>
+            <td style={{ ...TD, textAlign: "center" }}>1</td>
+            <td style={TD}>System Capacity</td>
+            <td style={{ ...TD, color: "#999" }}>—</td>
+            <td style={{ ...TD, textAlign: "right", fontWeight: 700, color: BLUE }}>
+              {f.systemCapacity} kWp
             </td>
           </tr>
-          <tr>
-            <td style={{ ...LB, fontWeight: 600 }}>Rate (Rs. / Wp) excl. GST</td>
-            <td style={TD}>Rs. {c.rateExGst} per Wp (excl. GST)</td>
-          </tr>
-          <tr>
-            <td style={{ ...LB, fontWeight: 600 }}>GST Rate (Rs. / Wp)</td>
-            <td style={TD}>Rs. {c.rateGst} per Wp (GST component)</td>
-          </tr>
-          <tr>
-            <td style={{ ...LB, fontWeight: 600 }}>Total (excl. GST @ 8.9%)</td>
-            <td style={{ ...TD, fontWeight: 700 }}>{inr(c.exGst)}</td>
-          </tr>
-          <tr>
-            <td style={{ ...LB, fontWeight: 600 }}>GST @ 8.9%</td>
-            <td style={TD}>{inr(c.gst)}</td>
-          </tr>
-          <tr style={{ background: NAVY }}>
-            <td style={{ padding: "10px 12px", border: "1px solid #d0d7e2", color: "white", fontWeight: 700, fontSize: 13 }}>
-              NET TOTAL (incl. GST)
+
+          {/* Row 2 */}
+          <tr style={{ background: "#F5F9FF" }}>
+            <td style={{ ...TD, textAlign: "center" }}>2</td>
+            <td style={TD}>Solar + Infra Price (Rs. / Wp)</td>
+            <td style={{ ...TD, fontWeight: 600 }}>
+              Rs. {ratePerWp.toFixed(0)} / Wp
             </td>
-            <td style={{ padding: "10px 12px", border: "1px solid #d0d7e2", color: ACCENT, fontWeight: 700, fontSize: 15 }}>
-              {inr(c.net)}
+            <td style={{ ...TD, textAlign: "right", color: "#999" }}>—</td>
+          </tr>
+
+          {/* Row 3 */}
+          <tr style={{ background: "#fff" }}>
+            <td style={{ ...TD, textAlign: "center" }}>3</td>
+            <td style={TD}>Total Price (excl. GST)</td>
+            <td style={{ ...TD, fontSize: 10.5, color: "#555" }}>
+              {(c.panels * PANEL_WP).toLocaleString("en-IN")} Wp × Rs. {ratePerWp.toFixed(0)}
+            </td>
+            <td style={{ ...TD, textAlign: "right", fontWeight: 700 }}>
+              {inr(c.exGst)}
             </td>
           </tr>
-          {c.subsidy > 0 && (
-            <>
-              <tr style={{ background: "#E6F4FF" }}>
-                <td style={{ ...LB, fontWeight: 600, color: "#0369a1" }}>
-                  Less: Govt. of India Subsidy (PM Surya Ghar)
-                </td>
-                <td style={{ ...TD, fontWeight: 700, color: "#0369a1" }}>
-                  − {inr(c.subsidy)}
-                </td>
-              </tr>
-              <tr style={{ background: "#E6FFEC" }}>
-                <td style={{ padding: "10px 12px", border: "1px solid #d0d7e2", fontWeight: 700, fontSize: 13, color: "#15803d" }}>
-                  NET PAYABLE AFTER SUBSIDY
-                </td>
-                <td style={{ padding: "10px 12px", border: "1px solid #d0d7e2", fontWeight: 700, fontSize: 15, color: "#15803d" }}>
-                  {inr(netAfterSubsidy)}
-                </td>
-              </tr>
-            </>
+
+          {/* Row 4 */}
+          <tr style={{ background: "#F5F9FF" }}>
+            <td style={{ ...TD, textAlign: "center" }}>4</td>
+            <td style={TD}>Total Price (incl. GST @ 8.9%)</td>
+            <td style={{ ...TD, fontSize: 10.5, color: "#555" }}>
+              {inr(c.exGst)} × 1.089
+            </td>
+            <td style={{ ...TD, textAlign: "right", fontWeight: 700 }}>
+              {inr(inclGst)}
+            </td>
+          </tr>
+
+          {/* Row 5 — only if subsidy > 0 */}
+          {f.subsidyPerKw > 0 && (
+            <tr style={{ background: "#E6F4FF" }}>
+              <td style={{ ...TD, textAlign: "center" }}>5</td>
+              <td style={{ ...TD, color: "#0369a1", fontWeight: 600 }}>
+                PM Surya Ghar Subsidy — {f.systemCapacity} kWp
+              </td>
+              <td style={{ ...TD, fontSize: 10.5, color: "#0369a1" }}>
+                Rs. {f.subsidyPerKw.toLocaleString("en-IN")} × {f.systemCapacity} kWp
+              </td>
+              <td style={{ ...TD, textAlign: "right", fontWeight: 700, color: "#0369a1" }}>
+                − {inr(subsidy)}
+              </td>
+            </tr>
           )}
+
+          {/* Row 6 — Net cost */}
+          <tr style={{ background: NAVY }}>
+            <td style={{ padding: "10px 8px", border: "1px solid #d0d7e2", color: "white", textAlign: "center", fontWeight: 700 }}>
+              {f.subsidyPerKw > 0 ? "6" : "5"}
+            </td>
+            <td style={{ padding: "10px 12px", border: "1px solid #d0d7e2", color: "white", fontWeight: 700, fontSize: 12 }}>
+              {f.subsidyPerKw > 0 ? "Net Cost to Client (after subsidy)" : "Net Total (incl. GST)"}
+            </td>
+            <td style={{ padding: "10px 12px", border: "1px solid #d0d7e2", color: "#aac9f0" }}>—</td>
+            <td style={{ padding: "10px 12px", border: "1px solid #d0d7e2", color: ACCENT, fontWeight: 700, fontSize: 15, textAlign: "right" }}>
+              {inr(netCost)}
+            </td>
+          </tr>
         </tbody>
       </table>
 
+      {/* Payment Schedule */}
       <NavBar title="Payment Schedule" sub="Milestone-based" />
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
@@ -909,8 +935,13 @@ export default function QuotePage() {
             <div className="grid grid-cols-2 gap-4">
               <Field label="System Capacity (kWp)" name="systemCapacity" type="number"
                 value={f.systemCapacity} onChange={onChange} />
-              <Field label="Rate (Rs./kW incl. GST)" name="ratePerKw" type="number"
-                value={f.ratePerKw} onChange={onChange} />
+              <Field
+                    label="Rate (Rs./Wp excl. GST)"
+                    name="ratePerKw"
+                    type="number"
+                    value={f.ratePerKw}
+                    onChange={onChange}
+                    />
                 <Field
                     label="Govt. Subsidy (Rs.) — 0 if none"
                     name="subsidyPerKw"
