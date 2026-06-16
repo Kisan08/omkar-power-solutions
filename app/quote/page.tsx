@@ -854,7 +854,7 @@ export default function QuotePage() {
   siteAddress: "",
   contactPerson: "",
   systemCapacity: 15,
-  ratePerKw: 59833,
+  ratePerKw: 55,
   acCableSpec: "4C x 25 sq. mm AL Armoured as per Design", // ← add this
   subsidyPerKw: 0, // ← add this
 });
