@@ -44,7 +44,7 @@ function compute(f: QuoteForm) {
   const panels          = Math.ceil(wp / PANEL_WP);
   const instWp          = panels * PANEL_WP;
   const gen             = Math.round(YIELD_KWH * f.systemCapacity);
-  const exGst           = instWp * f.ratePerKw;
+  const exGst           = wp * f.ratePerKw; // use exact kWp × 1000, not panel count
   const gst             = Math.round(exGst * GST_RATE);
   const net             = exGst + gst;
   const subsidy         = f.subsidyPerKw * f.systemCapacity;
@@ -422,7 +422,7 @@ function P3({ f, c }: { f: QuoteForm; c: Calc }) {
             <td style={{ ...TD, textAlign: "center" }}>3</td>
             <td style={TD}>Total Price (excl. GST)</td>
             <td style={{ ...TD, fontSize: 10.5, color: "#555" }}>
-              {(c.panels * PANEL_WP).toLocaleString("en-IN")} Wp × Rs. {ratePerWp.toFixed(0)}
+              {(f.systemCapacity * 1000).toLocaleString("en-IN")} Wp × Rs. {f.ratePerKw}
             </td>
             <td style={{ ...TD, textAlign: "right", fontWeight: 700 }}>
               {inr(c.exGst)}
