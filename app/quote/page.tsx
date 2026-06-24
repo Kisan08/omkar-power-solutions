@@ -835,8 +835,7 @@ function Field({
       <input
         type={type} name={name} value={value}
         onChange={onChange} placeholder={placeholder}
-        className="w-full px-4 py-2.5 text-sm rounded-xl bg-gray-800 border border-gray-700 text-white outline-none focus:border-blue-500 placeholder-gray-600"
-      />
+        className="w-full min-w-0 px-4 py-2.5 text-sm rounded-xl bg-gray-800 border border-gray-700 text-white outline-none focus:border-blue-500 placeholder-gray-600"      />
     </div>
   );
 }
@@ -922,9 +921,9 @@ export default function QuotePage() {
           <h2 className="text-lg font-medium text-white mb-1">Fill Client Details</h2>
           <p className="text-xs text-gray-500 mb-6">Preview updates live</p>
           <div className="flex flex-col gap-4">
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Proposal No." name="proposalNo" value={f.proposalNo} onChange={onChange} />
-              <Field label="Date" name="date" type="date" value={f.date} onChange={onChange} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Proposal No." name="proposalNo" value={f.proposalNo} onChange={onChange} />
+                <Field label="Date" name="date" type="date" value={f.date} onChange={onChange} />
             </div>
             <Field label="Client / Society Name" name="clientName" value={f.clientName} onChange={onChange}
               placeholder="e.g. Neelkanth Srushti Vaidyanath" />
@@ -932,7 +931,7 @@ export default function QuotePage() {
               placeholder="e.g. Kalyan East, Maharashtra" />
             <Field label="Contact Person / Phone" name="contactPerson" value={f.contactPerson} onChange={onChange}
               placeholder="e.g. 9594339594" />
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="System Capacity (kWp)" name="systemCapacity" type="number"
                 value={f.systemCapacity} onChange={onChange} />
               <Field
