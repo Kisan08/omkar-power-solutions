@@ -1,11 +1,12 @@
 "use client";
 import { JSX, useState } from "react";
+import COMPANY from "@/lib/company.config";
 
 export default function WhatsAppButton(): JSX.Element {
   const [hovered, setHovered] = useState<boolean>(false);
 
-  const phone = "918452035102";
-  const message = "Hi! I'm interested in solar installation. Can you help me?";
+  const phone = `91${COMPANY.phone}`;
+  const message = `Hi! I'm interested in solar installation from ${COMPANY.name}. Can you help me?`;
   const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 
   return (

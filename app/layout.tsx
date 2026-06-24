@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import COMPANY from "@/lib/company.config";
 
 export const metadata: Metadata = {
-  title: "Omkar Power Solutions — AI-powered solar platform",
-  description: "Go solar with intelligent decisions — Omkar Power Solutions",
+  title: `${COMPANY.name} — AI-powered solar platform`,
+  description: `Go solar with intelligent decisions — ${COMPANY.name}`,
 };
 
 export default function RootLayout({
