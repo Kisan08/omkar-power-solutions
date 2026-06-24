@@ -21,14 +21,14 @@ interface Client {
   created_at: string;
 }
 
-const STATUS_CONFIG: Record<CallStatus, { label: string; color: string; bg: string }> = {
-  pending:        { label: "Pending",        color: "#6B7280", bg: "#F3F4F6" },
-  calling:        { label: "Calling…",       color: "#1A4F8A", bg: "#EFF6FF" },
-  interested:     { label: "Interested ✅",  color: "#065F46", bg: "#D1FAE5" },
-  not_interested: { label: "Not Interested", color: "#991B1B", bg: "#FEE2E2" },
-  call_back:      { label: "Call Back 🔁",   color: "#92400E", bg: "#FEF3C7" },
-  no_answer:      { label: "No Answer",      color: "#6B7280", bg: "#F3F4F6" },
-  failed:         { label: "Failed",         color: "#7C3AED", bg: "#EDE9FE" },
+const STATUS_CONFIG: Record<CallStatus, { label: string; color: string; bg: string; priority: number }> = {
+  interested:     { label: "Interested ✅",  color: "#065F46", bg: "#D1FAE5", priority: 1 },
+  call_back:      { label: "Call Back 🔁",   color: "#92400E", bg: "#FEF3C7", priority: 2 },
+  calling:        { label: "Calling…",       color: "#1A4F8A", bg: "#EFF6FF", priority: 3 },
+  pending:        { label: "Pending",        color: "#6B7280", bg: "#F3F4F6", priority: 4 },
+  no_answer:      { label: "No Answer",      color: "#6B7280", bg: "#F3F4F6", priority: 5 },
+  failed:         { label: "Failed",         color: "#7C3AED", bg: "#EDE9FE", priority: 6 },
+  not_interested: { label: "Not Interested", color: "#991B1B", bg: "#FEE2E2", priority: 7 },
 };
 
 const ALL_STATUSES: CallStatus[] = [
@@ -76,8 +76,10 @@ export default function CRMPage() {
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState<{ msg: string; type: "ok" | "err" } | null>(null);
   const [uploadedCount, setUploadedCount] = useState<number | null>(null);
+  const [reminderDismissed, setReminderDismissed] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const notifiedRef = useRef<Set<string>>(new Set());
 
   const fetchClientsRef = useRef(async () => {
     try {
@@ -94,12 +96,35 @@ export default function CRMPage() {
 
   const fetchClients = fetchClientsRef.current;
 
+  // Browser notification permission
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
+
   useEffect(() => {
     const run = () => { fetchClientsRef.current(); };
     run();
     pollRef.current = setInterval(run, 5000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, []);
+
+  // Fire browser notification for newly interested leads
+  useEffect(() => {
+    const interested = clients.filter((c) => c.status === "interested");
+    for (const c of interested) {
+      if (!notifiedRef.current.has(c.id)) {
+        notifiedRef.current.add(c.id);
+        if ("Notification" in window && Notification.permission === "granted") {
+          new Notification("🔥 Interested Lead!", {
+            body: `${c.name} (${formatPhone(c.phone)}) is interested in solar!`,
+            icon: "/logo.png",
+          });
+        }
+      }
+    }
+  }, [clients]);
 
   function showToast(msg: string, type: "ok" | "err") {
     setToast({ msg, type });
@@ -172,7 +197,12 @@ export default function CRMPage() {
     finally { setCallingAll(false); }
   }
 
-  const filtered = clients.filter((c) => {
+  // Sort: interested & call_back on top, then by priority
+  const sorted = [...clients].sort((a, b) =>
+    STATUS_CONFIG[a.status].priority - STATUS_CONFIG[b.status].priority
+  );
+
+  const filtered = sorted.filter((c) => {
     const matchStatus = filterStatus === "all" || c.status === filterStatus;
     const matchSearch = search === "" || c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search);
     return matchStatus && matchSearch;
@@ -186,15 +216,24 @@ export default function CRMPage() {
     notInterested: clients.filter((c) => c.status === "not_interested").length,
   };
 
+  const interestedLeads = clients.filter((c) => c.status === "interested");
+  const callBackLeads = clients.filter((c) => c.status === "call_back");
+  const showReminder = !reminderDismissed && (interestedLeads.length > 0 || callBackLeads.length > 0);
+
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#F1F5F9", fontFamily: "Calibri, sans-serif" }}>
 
       <style>{`
-        .crm-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px; }
-        .crm-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; background: #fff; border-radius: 10px; padding: 14px 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 16px; }
-        .crm-search { border: 1px solid #D1D5DB; border-radius: 7px; padding: 8px 12px; font-size: 13px; width: 200px; outline: none; font-family: Calibri, sans-serif; }
-        .crm-select { border: 1px solid #D1D5DB; border-radius: 7px; padding: 8px 10px; font-size: 13px; cursor: pointer; font-family: Calibri, sans-serif; }
-        .crm-card { display: grid; background: #fff; border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); gap: 8px; }
+        .crm-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 16px; }
+        .crm-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; background: #fff; border-radius: 10px; padding: 14px 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); margin-bottom: 16px; position: relative; z-index: 2; }
+        .crm-search { border: 1px solid #D1D5DB; border-radius: 7px; padding: 8px 12px; font-size: 13px; width: 200px; outline: none; font-family: Calibri, sans-serif; position: relative; z-index: 1; }
+        .crm-select { border: 1px solid #D1D5DB; border-radius: 7px; padding: 8px 10px; font-size: 13px; cursor: pointer; font-family: Calibri, sans-serif; background: #fff; color: #374151; -webkit-appearance: menulist; position: relative; z-index: 1; }
+        .crm-select option { color: #374151; background: #fff; }
+        .crm-card { background: #fff; border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); display: grid; gap: 8px; }
+        .crm-card.interested { border-left: 4px solid #065F46; background: #F0FDF4; }
+        .crm-card.call_back { border-left: 4px solid #F5A623; }
+        .interested-row { background: #F0FDF4 !important; }
+        .callback-row { background: #FFFBEB !important; }
         @media (max-width: 640px) {
           .crm-stats { grid-template-columns: repeat(3, 1fr) !important; }
           .crm-stats .stat-hide { display: none; }
@@ -207,8 +246,6 @@ export default function CRMPage() {
           .crm-mobile-list { display: block !important; }
           .crm-header-title { font-size: 15px !important; }
           .crm-header-sub { display: none; }
-          .crm-select option { color: #374151; background: #fff; }
-          .crm-actions { position: relative; z-index: 2; }
         }
         @media (min-width: 641px) {
           .crm-mobile-list { display: none !important; }
@@ -244,17 +281,91 @@ export default function CRMPage() {
 
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "16px 12px" }}>
 
+        {/* ── Reminder Banner ── */}
+        {showReminder && (
+          <div style={{
+            backgroundColor: "#FFF7ED", border: "1px solid #F5A623",
+            borderRadius: 10, padding: "14px 16px", marginBottom: 16,
+            boxShadow: "0 2px 8px rgba(245,166,35,0.15)",
+          }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: "#92400E", marginBottom: 8 }}>
+                  🔔 Action Required — Follow Up Now
+                </div>
+                {interestedLeads.length > 0 && (
+                  <div style={{ marginBottom: 8 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "#065F46", marginBottom: 4 }}>
+                      🔥 {interestedLeads.length} Interested Lead{interestedLeads.length > 1 ? "s" : ""} — Send Proposal Today
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {interestedLeads.map((c) => (
+                        <div key={c.id} style={{
+                          backgroundColor: "#D1FAE5", color: "#065F46",
+                          padding: "4px 10px", borderRadius: 6, fontSize: 12, fontWeight: 600,
+                        }}>
+                          {c.name} · {formatPhone(c.phone)}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {callBackLeads.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "#92400E", marginBottom: 4 }}>
+                      🔁 {callBackLeads.length} Call Back{callBackLeads.length > 1 ? "s" : ""} Pending
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      {callBackLeads.map((c) => (
+                        <div key={c.id} style={{
+                          backgroundColor: "#FEF3C7", color: "#92400E",
+                          padding: "4px 10px", borderRadius: 6, fontSize: 12, fontWeight: 600,
+                        }}>
+                          {c.name} · {formatPhone(c.phone)}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <button onClick={() => setReminderDismissed(true)}
+                style={{ background: "none", border: "none", fontSize: 18, cursor: "pointer", color: "#92400E", padding: 0, lineHeight: 1 }}>
+                ✕
+              </button>
+            </div>
+            <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button onClick={() => setFilterStatus("interested")}
+                style={{ backgroundColor: "#065F46", color: "#fff", border: "none", borderRadius: 6, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                View Interested
+              </button>
+              <button onClick={() => setFilterStatus("call_back")}
+                style={{ backgroundColor: "#F5A623", color: "#fff", border: "none", borderRadius: 6, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                View Call Backs
+              </button>
+              <button onClick={() => { setFilterStatus("all"); setReminderDismissed(true); }}
+                style={{ backgroundColor: "#F3F4F6", color: "#6B7280", border: "none", borderRadius: 6, padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Stat cards */}
         <div className="crm-stats">
           {[
-            { label: "Total",    value: stats.total,         color: "#1A4F8A", hide: false },
-            { label: "Pending",  value: stats.pending,       color: "#6B7280", hide: false },
-            { label: "Interested", value: stats.interested,  color: "#065F46", hide: false },
-            { label: "Call Back",  value: stats.callBack,    color: "#92400E", hide: true  },
-            { label: "Not Int.",   value: stats.notInterested, color: "#991B1B", hide: true },
+            { label: "Total",       value: stats.total,         color: "#1A4F8A", hide: false },
+            { label: "Pending",     value: stats.pending,       color: "#6B7280", hide: false },
+            { label: "Interested",  value: stats.interested,    color: "#065F46", hide: false },
+            { label: "Call Back",   value: stats.callBack,      color: "#92400E", hide: true  },
+            { label: "Not Int.",    value: stats.notInterested, color: "#991B1B", hide: true  },
           ].map((s) => (
             <div key={s.label} className={s.hide ? "stat-hide" : ""}
-              style={{ backgroundColor: "#fff", borderRadius: 10, padding: "12px 14px", boxShadow: "0 1px 4px rgba(0,0,0,0.08)", borderTop: `4px solid ${s.color}` }}>
+              onClick={() => setFilterStatus(s.label === "Total" ? "all" : s.label === "Pending" ? "pending" : s.label === "Interested" ? "interested" : s.label === "Call Back" ? "call_back" : "not_interested")}
+              style={{
+                backgroundColor: "#fff", borderRadius: 10, padding: "12px 14px",
+                boxShadow: "0 1px 4px rgba(0,0,0,0.08)", borderTop: `4px solid ${s.color}`,
+                cursor: "pointer",
+              }}>
               <div style={{ fontSize: 24, fontWeight: 800, color: s.color }}>{s.value}</div>
               <div style={{ fontSize: 11, color: "#6B7280", marginTop: 2 }}>{s.label}</div>
             </div>
@@ -281,25 +392,15 @@ export default function CRMPage() {
           <div className="crm-spacer" style={{ flex: 1 }} />
 
           <input type="text" className="crm-search" placeholder="🔍 Search name or phone…"
-            value={search} onChange={(e) => setSearch(e.target.value)}
-            style={{ position: "relative", zIndex: 1 }}
-            />
+            value={search} onChange={(e) => setSearch(e.target.value)} />
 
           <select className="crm-select" value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as CallStatus | "all")}
-            style={{
-                border: "1px solid #D1D5DB", borderRadius: 7,
-                padding: "8px 10px", fontSize: 13, cursor: "pointer",
-                fontFamily: "Calibri, sans-serif", backgroundColor: "#fff",
-                color: "#374151", appearance: "auto" as never,
-                WebkitAppearance: "menulist",
-                position: "relative", zIndex: 1,
-                }}>
+            onChange={(e) => setFilterStatus(e.target.value as CallStatus | "all")}>
             <option value="all">All Statuses</option>
             {ALL_STATUSES.map((s) => (
-                <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>
+              <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>
             ))}
-            </select>
+          </select>
 
           <button className="crm-btn" onClick={callAllPending}
             disabled={callingAll || stats.pending === 0}
@@ -324,7 +425,7 @@ export default function CRMPage() {
           </button>
         </div>
 
-        {/* Table — desktop */}
+        {/* Desktop Table */}
         <div className="crm-desktop-table" style={{ backgroundColor: "#fff", borderRadius: 10, boxShadow: "0 1px 4px rgba(0,0,0,0.08)", overflow: "hidden" }}>
           {loading ? (
             <div style={{ padding: 48, textAlign: "center", color: "#6B7280" }}>Loading clients…</div>
@@ -347,9 +448,15 @@ export default function CRMPage() {
                 </thead>
                 <tbody>
                   {filtered.map((client, idx) => (
-                    <tr key={client.id} style={{ borderBottom: "1px solid #F1F5F9", backgroundColor: idx % 2 === 0 ? "#fff" : "#FAFAFA" }}>
+                    <tr key={client.id}
+                      className={client.status === "interested" ? "interested-row" : client.status === "call_back" ? "callback-row" : ""}
+                      style={{ borderBottom: "1px solid #F1F5F9" }}>
                       <td style={{ padding: "11px 16px", color: "#9CA3AF" }}>{idx + 1}</td>
-                      <td style={{ padding: "11px 16px", fontWeight: 600, color: "#111827" }}>{client.name}</td>
+                      <td style={{ padding: "11px 16px", fontWeight: 600, color: "#111827" }}>
+                        {client.status === "interested" && <span style={{ marginRight: 6 }}>🔥</span>}
+                        {client.status === "call_back" && <span style={{ marginRight: 6 }}>🔁</span>}
+                        {client.name}
+                      </td>
                       <td style={{ padding: "11px 16px", color: "#374151", whiteSpace: "nowrap" }}>{formatPhone(client.phone)}</td>
                       <td style={{ padding: "11px 16px" }}><StatusBadge status={client.status} /></td>
                       <td style={{ padding: "11px 16px", color: "#6B7280", maxWidth: 200 }}>{client.response ?? "—"}</td>
@@ -385,13 +492,13 @@ export default function CRMPage() {
           )}
           {filtered.length > 0 && (
             <div style={{ padding: "10px 16px", borderTop: "1px solid #F1F5F9", fontSize: 12, color: "#9CA3AF", display: "flex", justifyContent: "space-between" }}>
-              <span>Showing {filtered.length} of {clients.length} clients</span>
+              <span>Showing {filtered.length} of {clients.length} clients · Sorted by priority</span>
               <span>Auto-refreshes every 5s</span>
             </div>
           )}
         </div>
 
-        {/* Cards — mobile */}
+        {/* Mobile Cards */}
         <div className="crm-mobile-list">
           {loading ? (
             <div style={{ padding: 40, textAlign: "center", color: "#6B7280" }}>Loading clients…</div>
@@ -405,30 +512,30 @@ export default function CRMPage() {
           ) : (
             <>
               {filtered.map((client, idx) => (
-                <div key={client.id} className="crm-card">
-                  {/* Row 1: index + name + status */}
+                <div key={client.id}
+                  className={`crm-card ${client.status === "interested" ? "interested" : client.status === "call_back" ? "call_back" : ""}`}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <span style={{ fontSize: 11, color: "#9CA3AF", minWidth: 20 }}>{idx + 1}.</span>
-                      <span style={{ fontWeight: 700, fontSize: 14, color: "#111827" }}>{client.name}</span>
+                      <span style={{ fontWeight: 700, fontSize: 14, color: "#111827" }}>
+                        {client.status === "interested" && "🔥 "}
+                        {client.status === "call_back" && "🔁 "}
+                        {client.name}
+                      </span>
                     </div>
                     <StatusBadge status={client.status} />
                   </div>
-                  {/* Row 2: phone */}
                   <div style={{ fontSize: 13, color: "#374151" }}>📱 {formatPhone(client.phone)}</div>
-                  {/* Row 3: response if any */}
                   {client.response && (
                     <div style={{ fontSize: 12, color: "#6B7280", backgroundColor: "#F9FAFB", padding: "6px 10px", borderRadius: 6 }}>
                       {client.response}
                     </div>
                   )}
-                  {/* Row 4: called at */}
                   {client.called_at && (
                     <div style={{ fontSize: 11, color: "#9CA3AF" }}>
                       Called: {new Date(client.called_at).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                     </div>
                   )}
-                  {/* Row 5: actions */}
                   <div style={{ display: "flex", gap: 8 }}>
                     <button onClick={() => callOne(client)}
                       disabled={callingId === client.id || client.status === "calling" || client.status === "interested" || callingAll}
