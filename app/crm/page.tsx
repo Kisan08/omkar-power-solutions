@@ -207,6 +207,8 @@ export default function CRMPage() {
           .crm-mobile-list { display: block !important; }
           .crm-header-title { font-size: 15px !important; }
           .crm-header-sub { display: none; }
+          .crm-select option { color: #374151; background: #fff; }
+          .crm-actions { position: relative; z-index: 2; }
         }
         @media (min-width: 641px) {
           .crm-mobile-list { display: none !important; }
@@ -279,15 +281,25 @@ export default function CRMPage() {
           <div className="crm-spacer" style={{ flex: 1 }} />
 
           <input type="text" className="crm-search" placeholder="🔍 Search name or phone…"
-            value={search} onChange={(e) => setSearch(e.target.value)} />
+            value={search} onChange={(e) => setSearch(e.target.value)}
+            style={{ position: "relative", zIndex: 1 }}
+            />
 
           <select className="crm-select" value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as CallStatus | "all")}>
+            onChange={(e) => setFilterStatus(e.target.value as CallStatus | "all")}
+            style={{
+                border: "1px solid #D1D5DB", borderRadius: 7,
+                padding: "8px 10px", fontSize: 13, cursor: "pointer",
+                fontFamily: "Calibri, sans-serif", backgroundColor: "#fff",
+                color: "#374151", appearance: "auto" as never,
+                WebkitAppearance: "menulist",
+                position: "relative", zIndex: 1,
+                }}>
             <option value="all">All Statuses</option>
             {ALL_STATUSES.map((s) => (
-              <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>
+                <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>
             ))}
-          </select>
+            </select>
 
           <button className="crm-btn" onClick={callAllPending}
             disabled={callingAll || stats.pending === 0}
