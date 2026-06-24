@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://onesolarpower.in";
 
     const call = await client.calls.create({
-      to: `+91${phone}`,
+      to: `+91${phone.replace(/\D/g, "").slice(-10)}`,
       from: process.env.TWILIO_PHONE_NUMBER!,
       url: `${baseUrl}/api/call-twiml?clientId=${clientId}&name=${encodeURIComponent(name)}`,
       statusCallback: `${baseUrl}/api/call-webhook`,
