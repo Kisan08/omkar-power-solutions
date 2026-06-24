@@ -4,7 +4,7 @@ function buildTwiml(name: string, clientId: string, baseUrl: string) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="Polly.Aditi" language="hi-IN">
-    Namaste ${name} ji. Main Omkar Power Solutions se bol rahi hoon.
+    Namaste ${name} ji. Main OPS se bol rahi hoon.
     Humari company Maharashtra mein solar panel installation karti hai.
     Aap apne bijli bill mein 80 percent tak ki bachat kar sakte hain.
     Kya aap solar panel ke baare mein jaankari lena chahenge?
