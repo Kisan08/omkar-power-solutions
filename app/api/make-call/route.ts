@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
       to: `+91${phone.replace(/\D/g, "").slice(-10)}`,
       from: process.env.TWILIO_PHONE_NUMBER!,
       url: `${baseUrl}/api/call-twiml?clientId=${clientId}&name=${encodeURIComponent(name)}`,
-      statusCallback: `${baseUrl}/api/call-webhook`,
+      statusCallback: `${baseUrl}/api/call-webhook?clientId=${clientId}`,
       statusCallbackMethod: "POST",
     });
 

@@ -1,15 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
-export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const name = searchParams.get("name") || "Friend";
-  const clientId = searchParams.get("clientId") || "";
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://onesolarpower.in";
-
-  const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+function buildTwiml(name: string, clientId: string, baseUrl: string) {
+  return `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Say voice="Polly.Aditi" language="hi-IN">
-    Namaste ${name} ji. Main Omkar Power Solutions se bol raha hoon.
+    Namaste ${name} ji. Main Omkar Power Solutions se bol rahi hoon.
     Humari company Maharashtra mein solar panel installation karti hai.
     Aap apne bijli bill mein 80 percent tak ki bachat kar sakte hain.
     Kya aap solar panel ke baare mein jaankari lena chahenge?
@@ -22,8 +17,24 @@ export async function GET(req: NextRequest) {
     Koi jawab nahi mila. Hum baad mein call karenge. Dhanyavaad.
   </Say>
 </Response>`;
+}
 
-  return new NextResponse(twiml, {
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const name = searchParams.get("name") || "Friend";
+  const clientId = searchParams.get("clientId") || "";
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.onesolarpower.in";
+  return new NextResponse(buildTwiml(name, clientId, baseUrl), {
+    headers: { "Content-Type": "text/xml" },
+  });
+}
+
+export async function POST(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const name = searchParams.get("name") || "Friend";
+  const clientId = searchParams.get("clientId") || "";
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.onesolarpower.in";
+  return new NextResponse(buildTwiml(name, clientId, baseUrl), {
     headers: { "Content-Type": "text/xml" },
   });
 }
