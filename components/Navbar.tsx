@@ -76,15 +76,20 @@ export default function Navbar() {
 
         {/* Center Links */}
         <div className="hidden md:flex items-center gap-1">
-          {["Features", "How it works", "Pricing", "Get Quote"].map((item) => (
+          {["Features", "How it works", "Pricing", "Get Quote","CRM"].map((item) => (
             <Link
               key={item}
-              href={item === "Get Quote" ? "/quote" : `#${item.toLowerCase().replace(/ /g, "-")}`}
+              href={item === "Get Quote" ? "/quote" :
+                    item === "CRM" ? "/crm" : `#${item.toLowerCase().replace(/ /g, "-")}`}
               className="relative px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors duration-200 group"
+              
             >
               {item}
               <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-px bg-blue-500 group-hover:w-full transition-all duration-300" />
             </Link>
+            
+            
+            
           ))}
         </div>
 

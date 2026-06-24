@@ -110,10 +110,6 @@ export default function CRMPage() {
 
   // ── Fetch clients ──────────────────────────────────────────────────────────
 
-  // ── Fetch clients ──────────────────────────────────────────────────────────
-  // fetchClients is stored in a ref so the useEffect below never needs it
-  // as a dependency — avoids Turbopack's "setState in effect" cascade warning.
-
   const fetchClientsRef = useRef(async () => {
     try {
       const res = await fetch("/api/crm/clients");
@@ -131,7 +127,6 @@ export default function CRMPage() {
     }
   });
 
-  // Stable helper used by call handlers to refresh the table
   const fetchClients = fetchClientsRef.current;
 
   useEffect(() => {
@@ -141,7 +136,7 @@ export default function CRMPage() {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, []); // empty deps — run is stable via ref, no cascade
+  }, []);
 
   // ── Toast ─────────────────────────────────────────────────────────────────
 
@@ -186,7 +181,6 @@ export default function CRMPage() {
       });
       if (!res.ok) throw new Error((await res.json()).error ?? "Call failed");
       showToast(`Calling ${client.name}…`, "ok");
-      // Optimistic update
       setClients((prev) =>
         prev.map((c) => (c.id === client.id ? { ...c, status: "calling" } : c))
       );
@@ -194,6 +188,29 @@ export default function CRMPage() {
       showToast(err instanceof Error ? err.message : "Call failed", "err");
     } finally {
       setCallingId(null);
+    }
+  }
+
+  // ── Reset single client ───────────────────────────────────────────────────
+
+  async function resetOne(client: Client) {
+    try {
+      const res = await fetch("/api/crm/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: client.id }),
+      });
+      if (!res.ok) throw new Error();
+      setClients((prev) =>
+        prev.map((c) =>
+          c.id === client.id
+            ? { ...c, status: "pending", response: null, called_at: null }
+            : c
+        )
+      );
+      showToast(`${client.name} reset to pending`, "ok");
+    } catch {
+      showToast("Reset failed", "err");
     }
   }
 
@@ -216,7 +233,7 @@ export default function CRMPage() {
         setClients((prev) =>
           prev.map((x) => (x.id === c.id ? { ...x, status: "calling" } : x))
         );
-        await new Promise((r) => setTimeout(r, 1200)); // stagger calls
+        await new Promise((r) => setTimeout(r, 1200));
       }
       showToast(`Initiated calls for ${pending.length} clients`, "ok");
     } catch {
@@ -296,11 +313,11 @@ export default function CRMPage() {
         {/* ── Stat cards ── */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 14, marginBottom: 24 }}>
           {[
-            { label: "Total Clients", value: stats.total, color: "#1A4F8A" },
-            { label: "Pending",       value: stats.pending,       color: "#6B7280" },
-            { label: "Interested",    value: stats.interested,    color: "#065F46" },
-            { label: "Call Back",     value: stats.callBack,      color: "#92400E" },
-            { label: "Not Interested",value: stats.notInterested, color: "#991B1B" },
+            { label: "Total Clients",  value: stats.total,         color: "#1A4F8A" },
+            { label: "Pending",        value: stats.pending,       color: "#6B7280" },
+            { label: "Interested",     value: stats.interested,    color: "#065F46" },
+            { label: "Call Back",      value: stats.callBack,      color: "#92400E" },
+            { label: "Not Interested", value: stats.notInterested, color: "#991B1B" },
           ].map((s) => (
             <div
               key={s.label}
@@ -332,7 +349,6 @@ export default function CRMPage() {
             alignItems: "center",
           }}
         >
-          {/* Upload PDF */}
           <label
             style={{
               backgroundColor: "#1A4F8A",
@@ -365,10 +381,8 @@ export default function CRMPage() {
             </span>
           )}
 
-          {/* Divider */}
           <div style={{ flex: 1 }} />
 
-          {/* Search */}
           <input
             type="text"
             placeholder="🔍 Search name or phone…"
@@ -385,7 +399,6 @@ export default function CRMPage() {
             }}
           />
 
-          {/* Filter */}
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value as CallStatus | "all")}
@@ -404,7 +417,6 @@ export default function CRMPage() {
             ))}
           </select>
 
-          {/* Call All */}
           <button
             onClick={callAllPending}
             disabled={callingAll || stats.pending === 0}
@@ -423,7 +435,6 @@ export default function CRMPage() {
             {callingAll ? "📞 Calling…" : `📞 Call All Pending (${stats.pending})`}
           </button>
 
-          {/* Export CSV */}
           <button
             onClick={() => exportToCSV(filtered)}
             disabled={filtered.length === 0}
@@ -516,48 +527,68 @@ export default function CRMPage() {
                           : "—"}
                       </td>
                       <td style={{ padding: "11px 16px" }}>
-                        <button
-                          onClick={() => callOne(client)}
-                          disabled={
-                            callingId === client.id ||
-                            client.status === "calling" ||
-                            client.status === "interested" ||
-                            callingAll
-                          }
-                          style={{
-                            backgroundColor:
-                              client.status === "interested"
-                                ? "#D1FAE5"
-                                : client.status === "calling" || callingId === client.id
-                                ? "#EFF6FF"
-                                : "#1A4F8A",
-                            color:
-                              client.status === "interested"
-                                ? "#065F46"
-                                : client.status === "calling" || callingId === client.id
-                                ? "#1A4F8A"
-                                : "#fff",
-                            border: "none",
-                            borderRadius: 6,
-                            padding: "6px 14px",
-                            fontSize: 12,
-                            fontWeight: 700,
-                            cursor:
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button
+                            onClick={() => callOne(client)}
+                            disabled={
                               callingId === client.id ||
                               client.status === "calling" ||
                               client.status === "interested" ||
                               callingAll
-                                ? "not-allowed"
-                                : "pointer",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {client.status === "interested"
-                            ? "✅ Done"
-                            : callingId === client.id || client.status === "calling"
-                            ? "📞 Calling…"
-                            : "📞 Call"}
-                        </button>
+                            }
+                            style={{
+                              backgroundColor:
+                                client.status === "interested"
+                                  ? "#D1FAE5"
+                                  : client.status === "calling" || callingId === client.id
+                                  ? "#EFF6FF"
+                                  : "#1A4F8A",
+                              color:
+                                client.status === "interested"
+                                  ? "#065F46"
+                                  : client.status === "calling" || callingId === client.id
+                                  ? "#1A4F8A"
+                                  : "#fff",
+                              border: "none",
+                              borderRadius: 6,
+                              padding: "6px 14px",
+                              fontSize: 12,
+                              fontWeight: 700,
+                              cursor:
+                                callingId === client.id ||
+                                client.status === "calling" ||
+                                client.status === "interested" ||
+                                callingAll
+                                  ? "not-allowed"
+                                  : "pointer",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {client.status === "interested"
+                              ? "✅ Done"
+                              : callingId === client.id || client.status === "calling"
+                              ? "📞 Calling…"
+                              : "📞 Call"}
+                          </button>
+                          {client.status !== "pending" && (
+                            <button
+                              onClick={() => resetOne(client)}
+                              title="Reset to Pending"
+                              style={{
+                                backgroundColor: "#F3F4F6",
+                                color: "#6B7280",
+                                border: "none",
+                                borderRadius: 6,
+                                padding: "6px 10px",
+                                fontSize: 14,
+                                fontWeight: 700,
+                                cursor: "pointer",
+                              }}
+                            >
+                              ↺
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -566,7 +597,6 @@ export default function CRMPage() {
             </div>
           )}
 
-          {/* Footer row */}
           {filtered.length > 0 && (
             <div
               style={{
