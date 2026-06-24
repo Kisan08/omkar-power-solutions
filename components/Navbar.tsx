@@ -148,10 +148,10 @@ export default function Navbar() {
       {/* Mobile Menu */}
       {menuOpen && (
         <div className="md:hidden mt-2 bg-gray-900/95 backdrop-blur-xl border border-gray-700/50 rounded-2xl px-6 py-4 flex flex-col gap-3 shadow-2xl">
-          {["Features", "How it works", "Pricing", "Get Quote"].map((item) => (
+          {["Features", "How it works", "Pricing", "Get Quote", "CRM"].map((item) => (
             <Link
               key={item}
-              href={item === "Get Quote" ? "/quote" : `#${item.toLowerCase().replace(/ /g, "-")}`}
+              href={item === "Get Quote" ? "/quote" : item === "CRM" ? "/crm" : `#${item.toLowerCase().replace(/ /g, "-")}`}
               className="text-sm text-gray-400 hover:text-white transition-colors py-1"
               onClick={() => setMenuOpen(false)}
             >

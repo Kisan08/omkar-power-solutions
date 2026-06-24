@@ -368,7 +368,7 @@ export default function CRMPage() {
             <input
               ref={fileRef}
               type="file"
-              accept=".pdf"
+              accept=".pdf,.xlsx,.xls,.xlsm,.csv"
               style={{ display: "none" }}
               onChange={handleUpload}
               disabled={uploading}
