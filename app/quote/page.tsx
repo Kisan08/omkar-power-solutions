@@ -723,7 +723,7 @@ function P5({ f }: { f: QuoteForm }) {
           {scope.map(([num, desc, design, supply, install], i) => (
             <tr key={num} style={{ background: i % 2 === 0 ? "#fff" : "#F5F9FF" }}>
               <td style={{ ...TD, textAlign: "center" }}>{num}</td>
-              <td style={{ ...TD, fontWeight: 700 }}>{desc}</td>
+              <td style={{ ...TD, fontWeight: 700 }}>{desc}</td>  
               {[design, supply, install].map((v, j) => (
                 <td key={j} style={{
                   ...TD, textAlign: "center", fontWeight: 700,
