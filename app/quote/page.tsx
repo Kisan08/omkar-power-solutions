@@ -1,735 +1,602 @@
 "use client";
-import { useState, type ChangeEvent, type ReactNode, type CSSProperties } from "react";
-import Image from "next/image";
-import Link from "next/link";
+import { useState, type ChangeEvent, type ReactNode, type CSSProperties, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import COMPANY from "@/lib/company.config";
+
+export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store'
 
 /* ─── Types ─── */
+
+interface AppSettings {
+  name: string;
+  short_name: string;
+  phone: string;
+  email: string;
+  gst?: string;
+  proprietor?: string;
+  default_rate: number;
+}
+
+const COMPANY_DATA = COMPANY as unknown as Record<string, string | number | undefined>;
+
+const companySettings: AppSettings = {
+  name: String(COMPANY_DATA.name || "One Power"),
+  short_name: String(COMPANY_DATA.shortName || COMPANY_DATA.short_name || "OPS"),
+  phone: String(COMPANY_DATA.phone || "8452035102"),
+  email: String(COMPANY_DATA.email || "omkarpowersolutions16@gmail.com"),
+  gst: String(COMPANY_DATA.gst || ""),
+  proprietor: String(COMPANY_DATA.proprietor || "Authorized Signatory"),
+  default_rate: Number(COMPANY_DATA.defaultRate || COMPANY_DATA.default_rate || 52),
+};
+
 interface QuoteForm {
   proposalNo: string;
   date: string;
   validUntil: string;
   clientName: string;
   siteAddress: string;
-  contactPerson: string;
+  contactPhone: string;
   systemCapacity: number;
-  ratePerKw: number;
+  ratePerWp: number;
+  subsidyTotal: number;
+  monthlyBill: number;
+  gridRate: number;
+  roofType: string;
+  floors: string;
+  shadow: string;
+  projectType: string;
+  ppaRate: number;
   acCableSpec: string;
-  subsidyPerKw: number; // ← add this
+  batteryKwh: number;
 }
 
 /* ─── Constants ─── */
-const GST_RATE = 0.089;
-const PANEL_WP = 580;
+const GST_RATE  = 0.089;
+const PANEL_WP  = 580;
 const YIELD_KWH = 1332;
-const NAVY        = "#0F1E3D";
-const BLUE        = "#1E88E5";
-const ACCENT      = "#F5A623";
-const LIGHT       = "#E8F1FA";
-const GREEN_DARK  = "#16A34A";
-const GREEN_LIGHT = "#DCFCE7";
-const RED_DARK    = "#DC2626";
-const RED_LIGHT   = "#FEE2E2";
+const DEGRADE   = 0.0045;
+const GRID_RISE = 0.05;
+const NAVY      = "#0F1E3D";
+const BLUE      = "#1A4F8A";
+const BLUE2     = "#1E88E5";
+const ACCENT    = "#F5A623";
+const GREEN     = "#16A34A";
+const GREEN_L   = "#DCFCE7";
+const RED       = "#DC2626";
+const RED_L     = "#FEE2E2";
+const LIGHT     = "#E8F1FA";
+const GRAY      = "#F4F6F9";
 
 /* ─── Helpers ─── */
-const pad = (n: number) => String(n).padStart(2, "0");
-const inr = (n: number) => `Rs. ${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
-const fmtDate = (s: string) => {
-  if (!s) return "—";
-  const d = new Date(s);
-  return `${pad(d.getDate())} / ${pad(d.getMonth() + 1)} / ${d.getFullYear()}`;
-};
+const pad     = (n: number) => String(n).padStart(2, "0");
+const inr     = (n: number) => `Rs.${Math.round(n).toLocaleString("en-IN")}`;
+const inrFull = (n: number) => `Rs. ${Math.round(n).toLocaleString("en-IN")}`;
+const fmtDate = (s: string) => { if (!s) return "—"; const d = new Date(s); return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}`; };
+const lakh    = (n: number) => n >= 100000 ? `Rs.${(n/100000).toFixed(2)}L` : inr(n);
 
 function compute(f: QuoteForm) {
   const wp              = f.systemCapacity * 1000;
   const panels          = Math.ceil(wp / PANEL_WP);
-  const instWp          = panels * PANEL_WP;
   const gen             = Math.round(YIELD_KWH * f.systemCapacity);
-  const exGst           = wp * f.ratePerKw; // use exact kWp × 1000, not panel count
+  const exGst           = wp * f.ratePerWp;
   const gst             = Math.round(exGst * GST_RATE);
   const net             = exGst + gst;
-  const subsidy         = f.subsidyPerKw * f.systemCapacity;
+  const subsidy         = f.subsidyTotal;
   const netAfterSubsidy = Math.max(0, net - subsidy);
+  const annualSavingsY1 = Math.round(gen * f.gridRate);
+  const paybackYears    = netAfterSubsidy > 0 ? +(netAfterSubsidy / annualSavingsY1).toFixed(1) : 0;
+  const roi25           = Math.round(((totalSavings25(f, gen) - netAfterSubsidy) / netAfterSubsidy) * 100);
   return {
-    wp, panels, instWp, gen, exGst, gst, net,
-    subsidy, netAfterSubsidy,
+    wp, panels, gen, exGst, gst, net, subsidy, netAfterSubsidy,
+    annualSavingsY1, paybackYears, roi25,
     t1: Math.round(net * 0.30),
     t2: Math.round(net * 0.40),
     t3: Math.round(net * 0.20),
     t4: Math.round(net * 0.10),
   };
 }
+
+function totalSavings25(f: QuoteForm, gen: number) {
+  let total = 0;
+  for (let y = 1; y <= 25; y++) {
+    total += gen * Math.pow(1 - DEGRADE, y - 1) * f.gridRate * Math.pow(1 + GRID_RISE, y - 1);
+  }
+  return Math.round(total);
+}
+
+function savingsTable(f: QuoteForm, gen: number) {
+  const rows = [];
+  let cumSavings = 0;
+  const netCost = Math.max(0, (f.systemCapacity * 1000 * f.ratePerWp * (1 + GST_RATE)) - f.subsidyTotal);
+  for (let y = 1; y <= 25; y++) {
+    const genY    = Math.round(gen * Math.pow(1 - DEGRADE, y - 1));
+    const gridY   = f.gridRate * Math.pow(1 + GRID_RISE, y - 1);
+    const savings = Math.round(genY * gridY);
+    cumSavings   += savings;
+    rows.push({ y, genY, gridRate: +gridY.toFixed(2), savings, cumSavings, profit: cumSavings - netCost });
+  }
+  return rows;
+}
+
 type Calc = ReturnType<typeof compute>;
 
-/* ─── Base styles ─── */
-const BASE: CSSProperties = { padding: "7px 12px", border: "1px solid #d0d7e2", fontSize: 11.5 };
-const TH: CSSProperties   = { ...BASE, background: NAVY,  color: "white", fontWeight: 700, textAlign: "left" };
+/* ─── Uniform PDF styles — ONE font size everywhere: 13px ─── */
+const FONT   = 15; // was 13 — prints at ~10pt at this page width, too small for comfortable reading
+const FONT_S = 13; // was 11
+const FONT_L = 17; // was 15
+
+const BASE: CSSProperties = { padding: "10px 14px", border: "1px solid #d0d7e2", fontSize: FONT, lineHeight: 1.6 };
+const TH: CSSProperties   = { ...BASE, background: NAVY, color: "white", fontWeight: 700, textAlign: "left" };
 const TD: CSSProperties   = { ...BASE };
 const LB: CSSProperties   = { ...BASE, background: LIGHT, fontWeight: 600, color: NAVY };
 
-/* ─── Shared components ─── */
-
-function NavBar({ title, sub }: { title: string; sub?: string }) {
+/* ─── PDF Shell ─── */
+function PdfHeader({ s }: { s: AppSettings }) {
   return (
-    <div style={{
-      background: NAVY, color: "white",
-      padding: "7px 14px", marginTop: 14, marginBottom: 8,
-      borderLeft: `4px solid ${BLUE}`,
-      fontWeight: 700, fontSize: 12.5, letterSpacing: 0.4,
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: 12, borderBottom: `3px solid ${BLUE2}`, marginBottom: 6 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <img src="/logo.png" alt="Logo" style={{ width: 54, height: 54, objectFit: "contain" }} />
+        <div>
+          <div style={{ color: NAVY, fontWeight: 800, fontSize: 17, letterSpacing: 0.5, marginBottom: 3 }}>
+            {s.name.toUpperCase()}
+          </div>
+          <div style={{ color: "#555", fontSize: FONT_S, marginBottom: 3 }}>
+            Engineering · Procurement · Construction (EPC) – Solar Division
+          </div>
+          <div style={{ display: "flex", gap: 16, fontSize: FONT_S, color: "#444" }}>
+            <span>Ph: {s.phone}</span>
+            <span>{s.email}</span>
+            {s.gst && <span>GST: {s.gst}</span>}
+          </div>
+        </div>
+      </div>
+      <div style={{ textAlign: "right" }}>
+        <img src="/waaree_logo.png" alt="Waaree" style={{ height: 46, objectFit: "contain", display: "block" }} />
+        <div style={{ fontSize: 9, color: "#4B4B4B", marginTop: 4 }}>Authorized Partner</div>
+      </div>
+    </div>
+  );
+}
+
+function PdfFooter({ s }: { s: AppSettings }) {
+  return (
+    <div style={{ borderTop: "1px solid #ddd", paddingTop: 6, marginTop: "auto", textAlign: "center", color: "#555", fontSize: FONT_S }}>
+      {s.name} &nbsp;|&nbsp; {s.phone} &nbsp;|&nbsp; {s.email} &nbsp;|&nbsp; Confidential
+    </div>
+  );
+}
+
+function Page({ children, s }: { children: ReactNode; s: AppSettings }) {
+  return (
+    <div className="quote-page" style={{
+      fontFamily: "Arial, sans-serif", fontSize: FONT, color: "#1a1a1a", background: "white",
+      padding: "26px 32px", width: 794, minHeight: 1123, margin: "0 auto 18px",
+      boxSizing: "border-box", display: "flex", flexDirection: "column", pageBreakAfter: "always",
     }}>
-      {title.toUpperCase()}
-      {sub && (
-        <span style={{
-          color: BLUE, fontWeight: 400, fontStyle: "italic",
-          marginLeft: 10, fontSize: 11, textTransform: "none",
-        }}>— {sub}</span>
+      <PdfHeader s={s} />
+      <div style={{ flex: 1, paddingTop: 6, display: "flex", flexDirection: "column" }}>{children}</div>
+      <PdfFooter s={s} />
+    </div>
+  );
+}
+
+function SectionTitle({ title, sub }: { title: string; sub?: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "14px 0 8px" }}>
+      <div style={{ width: 5, height: 22, background: BLUE2, borderRadius: 2 }} />
+      <span style={{ fontWeight: 700, fontSize: FONT_L, color: NAVY, letterSpacing: 0.3 }}>{title.toUpperCase()}</span>
+      {sub && <span style={{ fontSize: FONT_S, color: "#555" }}>— {sub}</span>}
+    </div>
+  );
+}
+
+function KpiCard({ label, value, sub, color = BLUE2, bg = LIGHT }: { label: string; value: string; sub?: string; color?: string; bg?: string }) {
+  return (
+    <div style={{ background: bg, border: `1px solid ${color}30`, borderRadius: 8, padding: "12px 10px", textAlign: "center" }}>
+      <div style={{ fontSize: FONT_S, color: "#4B4B4B", fontWeight: 600, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 5 }}>{label}</div>
+      <div style={{ fontSize: 20, fontWeight: 700, color, lineHeight: 1.2 }}>{value}</div>
+      {sub && <div style={{ fontSize: FONT_S, color: "#4B4B4B", marginTop: 4 }}>{sub}</div>}
+    </div>
+  );
+}
+
+/* ─── PAGE 1 — Cover ───
+   Fix: wrapped in a flex column with justifyContent: 'space-between' so the
+   existing gaps between blocks (hero → client name → KPIs → details →
+   "why solar" → partner logos) stretch to fill the full page height instead
+   of leaving dead space at the bottom. Partner logos also enlarged.
+   Contrast fix: hero overlay darkened from rgba(15,30,61,0.6) to
+   rgba(15,30,61,0.78) and the "TECHNO-COMMERCIAL PROPOSAL" label brought to
+   full opacity — both were washing out against bright sky photos. */
+function P1({ f, c, s, showSiteDetails }: { f: QuoteForm; c: Calc; s: AppSettings; showSiteDetails: boolean }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", flex: 1, justifyContent: "space-between", gap: 0 }}>
+      <div>
+        {/* Hero */}
+        <div style={{ position: "relative", marginTop: 8, borderRadius: 8, overflow: "hidden" }}>
+          <img
+            src="/solar_cover.jpg"
+            alt={s.name}
+            style={{
+              width: "100%",
+              height: 190,
+              objectFit: "cover",
+              objectPosition: "center center",
+              display: "block",
+              filter: "saturate(1.06) contrast(1.03) brightness(1.02)",
+            }}
+          />
+          {/* Very light overlay only for subtle text readability.
+              The previous rgba(15,30,61,0.78) was making the image look heavily faded. */}
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              background:
+                "linear-gradient(90deg, rgba(8,18,45,0.08) 0%, rgba(8,18,45,0.03) 55%, rgba(8,18,45,0.12) 100%)",
+            }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              bottom: 12,
+              left: 16,
+              color: "white",
+              background: "rgba(8,18,45,0.58)",
+              padding: "5px 10px",
+              borderRadius: 5,
+              backdropFilter: "blur(2px)",
+            }}
+          >
+            <div style={{ fontSize: FONT_S, letterSpacing: 1.8, fontWeight: 700 }}>
+              TECHNO-COMMERCIAL PROPOSAL
+            </div>
+          </div>
+          <div style={{ position: "absolute", bottom: 14, right: 16, background: ACCENT, color: NAVY, padding: "6px 14px", borderRadius: 6, fontWeight: 700, fontSize: FONT_L }}>
+            {f.systemCapacity} kWp
+          </div>
+        </div>
+
+        {/* Client name BELOW image */}
+        <div style={{ background: NAVY, borderRadius: 8, padding: "12px 16px", marginTop: 6 }}>
+          <div style={{ fontSize: 17, fontWeight: 700, color: "white", lineHeight: 1.4, wordBreak: "break-word" }}>
+            {f.clientName || "Client Name"}
+          </div>
+          <div style={{ fontSize: FONT, color: "#aac9f0", marginTop: 3 }}>{f.siteAddress || "Site Address"}</div>
+        </div>
+      </div>
+
+      {/* KPI strip */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginTop: 12 }}>
+        <KpiCard label="System Size" value={`${f.systemCapacity} kWp`} sub={`${c.panels} Panels`} color={BLUE2} bg="#EEF5FF" />
+        <KpiCard label="Est. Generation" value={`${(c.gen/1000).toFixed(1)}k kWh`} sub="Per year" color={GREEN} bg={GREEN_L} />
+        <KpiCard label="Year 1 Savings" value={lakh(c.annualSavingsY1)} sub="Bill savings est." color={ACCENT} bg="#FFF8EE" />
+        <KpiCard label="Payback Period" value={`${c.paybackYears} yrs`} sub="Simple payback" color="#7C3AED" bg="#F3EEFF" />
+      </div>
+
+      {/* Proposal + Site Details */}
+      {showSiteDetails ? (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
+          <div style={{ background: GRAY, borderRadius: 8, padding: "12px 14px" }}>
+            <div style={{ fontSize: FONT_S, color: "#555", fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 8 }}>Proposal Details</div>
+            {[["Proposal No.", f.proposalNo], ["Date", fmtDate(f.date)], ["Valid Until", fmtDate(f.validUntil)]].map(([k, v]) => (
+              <div key={k} style={{ display: "flex", justifyContent: "space-between", fontSize: FONT, paddingBottom: 5, borderBottom: "1px solid #e5e7eb", marginBottom: 5 }}>
+                <span style={{ color: "#555" }}>{k}</span>
+                <span style={{ fontWeight: 600, color: NAVY }}>{v}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ background: GRAY, borderRadius: 8, padding: "12px 14px" }}>
+            <div style={{ fontSize: FONT_S, color: "#555", fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 8 }}>Site Details</div>
+            {[["Roof Type", f.roofType], ["Floors", f.floors], ["Shading", f.shadow], ["Contact", f.contactPhone]].map(([k, v]) => (
+              <div key={k} style={{ display: "flex", justifyContent: "space-between", fontSize: FONT, paddingBottom: 5, borderBottom: "1px solid #e5e7eb", marginBottom: 5 }}>
+                <span style={{ color: "#555" }}>{k}</span>
+                <span style={{ fontWeight: 600, color: NAVY }}>{v || "—"}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div style={{ background: GRAY, borderRadius: 8, padding: "12px 14px", marginTop: 10 }}>
+          <div style={{ fontSize: FONT_S, color: "#555", fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 8 }}>Proposal Details</div>
+          {[["Proposal No.", f.proposalNo], ["Date", fmtDate(f.date)], ["Valid Until", fmtDate(f.validUntil)]].map(([k, v]) => (
+            <div key={k} style={{ display: "flex", justifyContent: "space-between", fontSize: FONT, paddingBottom: 5, borderBottom: "1px solid #e5e7eb", marginBottom: 5 }}>
+              <span style={{ color: "#555" }}>{k}</span>
+              <span style={{ fontWeight: 600, color: NAVY }}>{v}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Why Solar strip */}
+      <div style={{ background: NAVY, borderRadius: 8, padding: "14px 16px" }}>
+        <div style={{ fontSize: FONT_S, color: ACCENT, fontWeight: 700, letterSpacing: 1, marginBottom: 10 }}>WHY GO SOLAR NOW?</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+          {[
+            { icon: "📉", t: "Reduce Electricity Bill", d: `Save approx. ${lakh(c.annualSavingsY1)} in Year 1 alone` },
+            { icon: "💰", t: `${lakh(totalSavings25(f, c.gen))} Total Savings`, d: "Projected savings over 25 years" },
+            { icon: "🌱", t: "Clean Energy", d: `${Math.round(c.gen * 25 * 0.82 / 1000)}T CO2 avoided over 25 years` },
+          ].map(item => (
+            <div key={item.t} style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 20 }}>{item.icon}</div>
+              <div style={{ color: "white", fontWeight: 700, fontSize: FONT, marginTop: 4 }}>{item.t}</div>
+              <div style={{ color: "#aac9f0", fontSize: FONT_S, marginTop: 3 }}>{item.d}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Partner logos — enlarged (was height:34, now 60) so this block
+          carries more visual weight at the bottom of the cover page */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 32 }}>
+        <img src="/waaree_logo.png" alt="Waaree" style={{ height: 60, objectFit: "contain", opacity: 0.9 }} />
+        <img src="/adani_solar.png" alt="Adani" style={{ height: 60, objectFit: "contain", opacity: 0.9 }} />
+        <img src="/premier_energies.png" alt="Premier" style={{ height: 60, objectFit: "contain", opacity: 0.9 }} />
+      </div>
+    </div>
+  );
+}
+
+/* ─── PAGE 2 — System + Pricing ───
+   Fix v2: space-between stretched gaps to consume ALL leftover page space,
+   which ballooned into "too much" when content was shorter than the page.
+   Switched to a fixed, moderate gap instead — predictable spacing that
+   doesn't grow or shrink based on how much room happens to be left. */
+function P2({ f, c }: { f: QuoteForm; c: Calc }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", flex: 1, gap: 22 }}>
+      <div>
+        <SectionTitle title="System Design" sub="Technical configuration" />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 12 }}>
+          <KpiCard label="Solar Panels" value={`${c.panels}`} sub="Waaree 580 Wp TOPCon" color={BLUE2} bg="#EEF5FF" />
+          <KpiCard label="Inverter" value={`${f.systemCapacity} kW`} sub="Waaree String" color={NAVY} bg={LIGHT} />
+          <KpiCard label="AC Generation" value={`${c.gen.toLocaleString("en-IN")}`} sub="kWh / year" color={GREEN} bg={GREEN_L} />
+          <KpiCard label="Performance Ratio" value="75%" sub="GHI: 1,850 kWh/m2" color="#7C3AED" bg="#F3EEFF" />
+        </div>
+
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <tbody>
+            {[
+              ["Module", "Waaree / Premier TOPCon Bifacial 580 Wp | BIS Compliant", "Structure", "Hot-Dip Galvanized (HDG) | 15-yr warranty"],
+              ["Inverter", `Waaree String ${f.systemCapacity} kW | Grid-tied`, "DC Cable", "4 mm2 Tinned Cu | EN-50618 (Waasol)"],
+              ["Degradation", "0.45% YoY from Year 2", "Timeline", "60-70 days from PO & Advance"],
+              ["Earthing", "Chemical Earth Pits per IS 3043", "Lightning Arrester", "Conventional LA per IEC-62305"],
+            ].map((row, i) => (
+              <tr key={i}>
+                <td style={{ ...LB, width: "16%" }}>{row[0]}</td>
+                <td style={{ ...TD, width: "34%" }}>{row[1]}</td>
+                <td style={{ ...LB, width: "16%" }}>{row[2]}</td>
+                <td style={{ ...TD, width: "34%" }}>{row[3]}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {f.batteryKwh > 0 && (
+          <>
+            <SectionTitle title="Battery / Hybrid Configuration" />
+            <div style={{ background: "#FFF8EE", border: `1px solid ${ACCENT}40`, borderRadius: 8, padding: "10px 14px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                <KpiCard label="Battery Capacity" value={`${f.batteryKwh} kWh`} sub="LiFePO4" color={ACCENT} bg="white" />
+                <KpiCard label="Backup Hours" value={`~${Math.round(f.batteryKwh / (f.systemCapacity * 0.4))} hrs`} sub="Estimated" color={ACCENT} bg="white" />
+                <KpiCard label="Battery Type" value="LiFePO4" sub="10-yr warranty" color={ACCENT} bg="white" />
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div>
+        <SectionTitle title="Pricing Breakdown" sub="CAPEX model" />
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <th style={{ ...TH, width: "5%", textAlign: "center" }}>#</th>
+              <th style={TH}>Description</th>
+              <th style={{ ...TH, width: "30%" }}>Rate / Details</th>
+              <th style={{ ...TH, width: "20%", textAlign: "right" }}>Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[
+              { n: "1", d: "System Capacity", r: `${f.systemCapacity} kWp`, a: "", bold: false, bg: "#fff" },
+              { n: "2", d: "Solar + Infrastructure (excl. GST)", r: `Rs. ${f.ratePerWp} / Wp x ${(f.systemCapacity*1000).toLocaleString("en-IN")} Wp`, a: inrFull(c.exGst), bold: false, bg: "#F5F9FF" },
+              { n: "3", d: "GST @ 8.9%", r: "", a: inrFull(c.gst), bold: false, bg: "#fff" },
+              { n: "4", d: "Total (incl. GST)", r: "", a: inrFull(c.net), bold: true, bg: "#EEF5FF" },
+              ...(f.subsidyTotal > 0 ? [{ n: "5", d: "PM Surya Ghar Subsidy", r: "Direct subsidy amount", a: `- ${inrFull(c.subsidy)}`, bold: false, bg: "#E6F4FF" }] : []),
+            ].map(row => (
+              <tr key={row.n} style={{ background: row.bg }}>
+                <td style={{ ...TD, textAlign: "center" }}>{row.n}</td>
+                <td style={{ ...TD, fontWeight: row.bold ? 700 : 400, color: row.bold ? BLUE2 : "inherit" }}>{row.d}</td>
+                <td style={{ ...TD, color: "#4B4B4B" }}>{row.r}</td>
+                <td style={{ ...TD, textAlign: "right", fontWeight: row.bold ? 700 : 400 }}>{row.a}</td>
+              </tr>
+            ))}
+            <tr style={{ background: NAVY }}>
+              <td colSpan={3} style={{ padding: "10px 12px", border: "1px solid #d0d7e2", color: "white", fontWeight: 700, fontSize: FONT_L }}>
+                NET TOTAL (incl. GST)
+              </td>
+              <td style={{ padding: "10px 12px", border: "1px solid #d0d7e2", color: ACCENT, fontWeight: 700, fontSize: 16, textAlign: "right" }}>
+                {inrFull(c.net)}
+              </td>
+            </tr>
+            {f.subsidyTotal > 0 && (
+              <tr style={{ background: "#E6F4FF" }}>
+                <td colSpan={3} style={{ padding: "8px 12px", border: "1px solid #d0d7e2", color: "#0369a1", fontSize: FONT }}>
+                  After PM Surya Ghar Subsidy of {inrFull(f.subsidyTotal)} - Net effective cost to society
+                </td>
+                <td style={{ padding: "8px 12px", border: "1px solid #d0d7e2", color: "#0369a1", fontWeight: 600, fontSize: FONT_L, textAlign: "right" }}>
+                  {inrFull(c.netAfterSubsidy)}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div>
+        <SectionTitle title="Payment Schedule" sub="Milestone-based" />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+          {[
+            { l: "T-1 | 30%", d: "Advance on PO", a: c.t1 },
+            { l: "T-2 | 40%", d: "Material Delivery", a: c.t2 },
+            { l: "T-3 | 20%", d: "Installation & Commissioning", a: c.t3 },
+            { l: "T-4 | 10%", d: "Net Meter & Handover", a: c.t4 },
+          ].map((m, i) => (
+            <div key={i} style={{ background: i === 0 ? NAVY : GRAY, borderRadius: 8, padding: "10px 12px", textAlign: "center", border: `1px solid ${i === 0 ? NAVY : "#e5e7eb"}` }}>
+              <div style={{ fontSize: FONT_S, fontWeight: 700, color: i === 0 ? ACCENT : BLUE2, letterSpacing: 0.5 }}>{m.l}</div>
+              <div style={{ fontSize: FONT_L, fontWeight: 700, color: i === 0 ? "white" : NAVY, margin: "6px 0 4px" }}>{inrFull(m.a)}</div>
+              <div style={{ fontSize: FONT_S, color: i === 0 ? "#aac9f0" : "#4B4B4B" }}>{m.d}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {f.projectType === "OPEX / PPA" && f.ppaRate > 0 && (
+        <div>
+          <SectionTitle title="OPEX / PPA Model" sub="Alternative to CAPEX" />
+          <div style={{ background: "#F3EEFF", border: "1px solid #7C3AED30", borderRadius: 8, padding: "12px 16px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+              <KpiCard label="PPA Rate" value={`Rs.${f.ppaRate}/kWh`} sub="Fixed for contract term" color="#7C3AED" bg="white" />
+              <KpiCard label="Grid Rate" value={`Rs.${f.gridRate}/kWh`} sub="Current tariff" color={RED} bg="white" />
+              <KpiCard label="Savings/Unit" value={`Rs.${(f.gridRate - f.ppaRate).toFixed(2)}`} sub="Per kWh saved" color={GREEN} bg="white" />
+            </div>
+            <div style={{ marginTop: 10, fontSize: FONT, color: "#555", lineHeight: 1.6 }}>
+              Under the OPEX model, {String(COMPANY_DATA.name || companySettings.name)} owns, operates and maintains the solar plant. You pay only for units generated at Rs. {f.ppaRate}/kWh — saving Rs. {(f.gridRate - f.ppaRate).toFixed(2)}/kWh vs current grid rate. Zero CAPEX investment required.
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
 }
 
-function BlueBar({ children }: { children: ReactNode }) {
-  return (
-    <div style={{
-      background: BLUE, color: "white",
-      padding: "6px 14px", marginTop: 10, marginBottom: 0,
-      fontWeight: 600, fontSize: 16,
-    }}>{children}</div>
-  );
-}
-
-function PageHeader() {
-  return (
-    <div style={{
-      display: "flex", alignItems: "center", justifyContent: "space-between",
-      paddingBottom: 10, borderBottom: `2px solid ${BLUE}`,
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <img src="/logo.png" alt="OPS"
-          style={{ width: 46, height: 46, objectFit: "contain" }} />
-        <div>
-          <div style={{ color: NAVY, fontWeight: 700, fontSize: 14.5, letterSpacing: 0.4 }}>
-            OMKAR POWER SOLUTIONS
-          </div>
-          <div style={{ color: "#555", fontSize: 9.5, fontStyle: "italic", marginTop: 1 }}>
-            Engineering &nbsp;·&nbsp; Procurement &nbsp;·&nbsp; Construction (EPC) – Solar Division
-          </div>
-          <div style={{ color: "#555", fontSize: 9.5, marginTop: 2 }}>
-            📞 8452035102 &nbsp;·&nbsp; omkarpowersolutions16@gmail.com &nbsp;·&nbsp; GST: 27FAVPD3160C1ZE
-          </div>
-        </div>
-      </div>
-      <div>
-        <img
-            src="/waaree_logo.png"
-            alt="Waaree"
-            style={{ height: 48, objectFit: "contain" }}
-        />
-      </div>
-    </div>
-  );
-}
-
-function PageFooter() {
-  return (
-    <div style={{
-      borderTop: "1px solid #ddd", paddingTop: 5, marginTop: "auto",
-      textAlign: "center", color: "#888", fontSize: 9,
-    }}>
-      Omkar Power Solutions &nbsp;·&nbsp; 8452035102 &nbsp;·&nbsp; omkarpowersolutions16@gmail.com &nbsp;·&nbsp; Confidential
-    </div>
-  );
-}
-
-function Page({ children }: { children: ReactNode }) {
-  return (
-    <div className="quote-page" style={{
-      fontFamily: "Calibri, Arial, sans-serif",
-      fontSize: 11.5, color: "#1a1a1a", background: "white",
-      padding: "26px 32px", width: 794, minHeight: 1123,
-      margin: "0 auto 18px", boxSizing: "border-box",
-      display: "flex", flexDirection: "column", pageBreakAfter: "always",
-    }}>
-      <PageHeader />
-      <div style={{ flex: 1, paddingTop: 4 }}>{children}</div>
-      <PageFooter />
-    </div>
-  );
-}
-
-/* ─── PAGE 1 — Our Story ─── */
-function P1() {
-  return (
-    <>
-      {/* Real cover image */}
-      <div style={{ marginTop: 10, marginBottom: 4 }}>
-        <img
-          src="/solar_cover.jpg"
-          alt="Omkar Power Solutions"
-          style={{ width: "100%", height: 175, objectFit: "cover", borderRadius: 3, display: "block" }}
-        />
-      </div>
-
-      <NavBar title="Our Story" sub="Who we are" />
-      <div style={{
-        background: LIGHT, padding: "11px 15px", borderRadius: 3,
-        fontSize: 11.5, lineHeight: 1.6, borderLeft: `3px solid ${BLUE}`,
-      }}>
-        <p style={{ marginBottom: 7 }}>
-          Omkar Power Solutions is a professional Solar EPC company delivering high-quality, efficient,
-          and reliable solar energy solutions across Maharashtra. We handle everything end-to-end —
-          engineering design, premium component procurement, installation, commissioning, and long-term
-          maintenance support.
-        </p>
-        <p>
-          Our focus on quality workmanship, safety, and long-term performance ensures every project
-          delivers maximum return on investment for our clients.
-        </p>
-      </div>
-
-      <BlueBar>OUR SERVICES</BlueBar>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <tbody>
-          <tr>
-            {[
-              { icon: "☀", t: "On-Grid Solar",     d: "Grid-tied systems with net metering for societies & offices" },
-              { icon: "🔋", t: "Off-Grid / Hybrid", d: "Battery-backed systems for zero grid dependency" },
-              { icon: "🏭", t: "C&I Projects",      d: "Large commercial & industrial solar plants for max ROI" },
-              { icon: "🔧", t: "O&M Services",      d: "Annual maintenance for peak system performance" },
-            ].map(s => (
-              <td key={s.t} style={{
-                padding: "10px 12px", border: "1px solid #d0d7e2",
-                fontSize: 10.5, width: "25%", verticalAlign: "top",
-              }}>
-                <div style={{ fontWeight: 700, color: NAVY, marginBottom: 4, fontSize: 11 }}>
-                  {s.icon} {s.t}
-                </div>
-                <div style={{ color: "#444", lineHeight: 1.4 }}>{s.d}</div>
-              </td>
-            ))}
-          </tr>
-        </tbody>
-      </table>
-
-      <BlueBar>WHY CHOOSE OMKAR POWER SOLUTIONS</BlueBar>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <tbody>
-          <tr style={{ background: GREEN_LIGHT }}>
-            {[
-              [
-                "Turnkey EPC — single point responsibility",
-                "Tier-1 Waaree & Premier modules only",
-                "HDG structures — 15-yr corrosion warranty",
-                "EAR & Marine insurance included",
-              ],
-              [
-                "DISCOM net metering handled end-to-end",
-                "Height-trained team, zero accident record",
-                "Remote monitoring setup included",
-                "Post-commissioning AMC available",
-              ],
-            ].map((col, ci) => (
-              <td key={ci} style={{
-                padding: "11px 16px", border: "1px solid #d0d7e2",
-                fontSize: 11, width: "50%", verticalAlign: "top", lineHeight: 1.9,
-              }}>
-                {col.map(i => (
-                  <div key={i}>
-                    <span style={{ color: GREEN_DARK, fontWeight: 700, marginRight: 7 }}>✔</span>{i}
-                  </div>
-                ))}
-              </td>
-            ))}
-          </tr>
-        </tbody>
-      </table>
-      <div style={{
-        marginTop: 12, border: "1px solid #d0d7e2",
-        borderRadius: 3, padding: "10px 16px",
-        background: "#FAFCFF",
-        }}>
-        <div style={{
-            fontSize: 9.5, fontWeight: 700, color: NAVY,
-            letterSpacing: 0.5, marginBottom: 10, textAlign: "center",
-        }}>
-            OUR BRAND PARTNERS
-        </div>
-        
-        <div style={{
-            display: "flex", alignItems: "center",
-            justifyContent: "center", gap: 3,
-        }}>
-            <img src="/waaree_logo.png"    alt="Waaree"          style={{ height: 60, objectFit: "contain" }} />
-            <img src="/adani_solar.png"    alt="Adani Solar"     style={{ height: 60, objectFit: "contain" }} />
-            <img src="/premier_energies.png" alt="Premier Energies" style={{ height: 60, objectFit: "contain" }} />
-        </div>
-      </div>
-      <div style={{
-  marginTop: 10, border: "1px solid #d0d7e2",
-  borderRadius: 3, padding: "10px 16px",
-  background: "#FAFCFF",
-}}>
-  <div style={{
-    fontSize: 9.5, fontWeight: 700, color: NAVY,
-    letterSpacing: 0.5, marginBottom: 10, textAlign: "center",
-  }}>
-    OUR CLIENTS
-  </div>
-  <div style={{
-    display: "flex", alignItems: "center",
-    justifyContent: "center", gap: 20, flexWrap: "wrap",
-  }}>
-    <img src="/client_hiranandani.jpeg"  alt="House of Hiranandani" style={{ height: 100, objectFit: "contain" }} />
-    <img src="/client_mahavir.jpeg"      alt="Mahavir Kalpavruksha" style={{ height: 48, objectFit: "contain" }} />
-    <img src="/client_jpinfra.jpeg"      alt="JP Infra"             style={{ height: 60, objectFit: "contain" }} />
-    <img src="/client_lodha.jpeg"        alt="Lodha"                style={{ height: 48, objectFit: "contain" }} />
-    <img src="/client_triveni.jpeg"      alt="Triveni"              style={{ height: 100, objectFit: "contain" }} />
-    <img src="/client_regency.jpeg"      alt="Regency Antam"       style={{ height: 80, objectFit: "contain" }} />
-    <img src="/client_mohan.jpeg"        alt="Mohan Group"          style={{ height: 100, objectFit: "contain" }} />
-  </div>
-</div>
-            </>
-  );
-}
-
-/* ─── PAGE 2 — Proposal Details ─── */
-function P2({ f, c }: { f: QuoteForm; c: Calc }) {
-  return (
-    <>
-      <NavBar title="Proposal Details" />
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <tbody>
-          <tr>
-            <td style={{ ...LB, width: "18%" }}>Proposal No.</td>
-            <td style={{ ...TD, width: "32%" }}>{f.proposalNo}</td>
-            <td style={{ ...LB, width: "18%" }}>Date</td>
-            <td style={{ ...TD, width: "32%" }}>{fmtDate(f.date)}</td>
-          </tr>
-          <tr>
-            <td style={LB}>Client Name</td>
-            <td style={{ ...TD, fontWeight: 700 }}>{f.clientName || "—"}</td>
-            <td style={LB}>Valid Until</td>
-            <td style={TD}>{fmtDate(f.validUntil)}</td>
-          </tr>
-          <tr>
-            <td style={LB}>Site Address</td>
-            <td colSpan={3} style={TD}>{f.siteAddress || "__________________"}</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <div style={{ marginTop: 18 }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ background: BLUE, color: "white" }}>
-              {["SYSTEM CAPACITY", "SOLAR PANELS", "INVERTER", "EST. GENERATION"].map(h => (
-                <th key={h} style={{
-                  padding: "7px 10px", border: "1px solid #d0d7e2",
-                  textAlign: "left", fontSize: 11, width: "25%",
-                }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            <tr style={{ background: "#F5F9FF" }}>
-              <td style={{ padding: "16px 12px", border: "1px solid #d0d7e2", textAlign: "center" }}>
-                <div style={{ fontWeight: 700, fontSize: 22, color: BLUE }}>{f.systemCapacity} kWp</div>
-                <div style={{ color: "#666", fontSize: 9.5, marginTop: 2 }}>System Size</div>
-              </td>
-              <td style={{ padding: "16px 12px", border: "1px solid #d0d7e2", textAlign: "center" }}>
-                <div style={{ fontWeight: 700, fontSize: 15, color: NAVY }}>{c.panels} Panels</div>
-                <div style={{ color: "#666", fontSize: 9.5, marginTop: 2 }}>Waaree / Premier TopCon Bifacial</div>
-                <div style={{ color: "#666", fontSize: 9.5 }}>580 Wp each</div>
-              </td>
-              <td style={{ padding: "16px 12px", border: "1px solid #d0d7e2", textAlign: "center" }}>
-                <div style={{ fontWeight: 700, fontSize: 15, color: NAVY }}>{f.systemCapacity} kW String</div>
-                <div style={{ color: "#666", fontSize: 9.5, marginTop: 2 }}>Waaree String Inverter</div>
-              </td>
-              <td style={{ padding: "16px 12px", border: "1px solid #d0d7e2", textAlign: "center", background: GREEN_LIGHT }}>
-                <div style={{ fontWeight: 700, fontSize: 19, color: GREEN_DARK }}>
-                  {c.gen.toLocaleString("en-IN")}
-                </div>
-                <div style={{ color: "#555", fontSize: 9.5, marginTop: 2 }}>kWh / year (est.)</div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <NavBar title="Technical Specifications" />
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <tbody>
-          {[
-            ["Module",            `Waaree / Premier TopCon Bifacial 580 Wp DCR`,  "Inverter",         `Waaree String Inverter ${f.systemCapacity} kW String`],
-            ["Structure",         "Hot-Dip Galvanized (HDG)",                      "DC Cable",         "4 mm² Tinned Cu, EN-50618 (Waasol)"],
-            ["Performance Ratio", "75%  |  GHI: 1,850 kWh/m²",                    "Degradation",      "0.45% YoY from Year 2"],
-            ["Timeline",          "60–70 days from PO & Advance",                  "BIS / Compliance", "Yes — Module BIS | EN-50618"],
-          ].map((row, i) => (
-            <tr key={i}>
-              <td style={{ ...LB, width: "18%" }}>{row[0]}</td>
-              <td style={{ ...TD, width: "32%" }}>{row[1]}</td>
-              <td style={{ ...LB, width: "18%" }}>{row[2]}</td>
-              <td style={{ ...TD, width: "32%" }}>{row[3]}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </>
-  );
-}
-
-/* ─── PAGE 3 — Pricing ─── */
+/* ─── PAGE 3 — Financial Analysis ─── */
 function P3({ f, c }: { f: QuoteForm; c: Calc }) {
-  const ratePerWp = Math.round(c.exGst / (c.panels * PANEL_WP) * 100) / 100;
-  const inclGst = c.net;
-  const subsidy = f.subsidyPerKw * f.systemCapacity;
-  const netCost = Math.max(0, inclGst - subsidy);
+  const rows = savingsTable(f, c.gen);
+  const total25 = totalSavings25(f, c.gen);
+  const paybackRow = rows.find(r => r.cumSavings >= c.netAfterSubsidy);
 
   return (
     <>
-      <NavBar title={`Pricing Breakdown — ${f.systemCapacity} kWp (CAPEX)`} />
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <SectionTitle title="Financial Analysis" sub="25-year savings projection" />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 12 }}>
+        <KpiCard label="Investment" value={lakh(c.netAfterSubsidy)} sub="Net after subsidy" color={BLUE2} bg="#EEF5FF" />
+        <KpiCard label="Year 1 Savings" value={lakh(c.annualSavingsY1)} sub={`@ Rs.${f.gridRate}/kWh`} color={GREEN} bg={GREEN_L} />
+        <KpiCard label="Payback Period" value={`${c.paybackYears} yrs`} sub="Simple payback" color={ACCENT} bg="#FFF8EE" />
+        <KpiCard label="25-Year Returns" value={lakh(total25)} sub={`ROI: ${c.roi25}%`} color="#7C3AED" bg="#F3EEFF" />
+      </div>
+
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: FONT }}>
         <thead>
-          <tr>
-            <th style={{ ...TH, width: "6%",  textAlign: "center" }}>#</th>
-            <th style={TH}>Item</th>
-            <th style={{ ...TH, width: "30%" }}>Rate</th>
-            <th style={{ ...TH, width: "22%", textAlign: "right" }}>Amount</th>
+          <tr style={{ background: NAVY, color: "white" }}>
+            <th style={{ padding: "9px 11px", border: "1px solid #d0d7e2", textAlign: "center", width: "6%" }}>Year</th>
+            <th style={{ padding: "9px 11px", border: "1px solid #d0d7e2", textAlign: "right" }}>Generation (kWh)</th>
+            <th style={{ padding: "9px 11px", border: "1px solid #d0d7e2", textAlign: "right" }}>Grid Rate (Rs.)</th>
+            <th style={{ padding: "9px 11px", border: "1px solid #d0d7e2", textAlign: "right" }}>Annual Savings</th>
+            <th style={{ padding: "9px 11px", border: "1px solid #d0d7e2", textAlign: "right" }}>Cumulative</th>
+            <th style={{ padding: "9px 11px", border: "1px solid #d0d7e2", textAlign: "right" }}>Net Profit / (Loss)</th>
           </tr>
         </thead>
         <tbody>
-          {/* Row 1 */}
-          <tr style={{ background: "#fff" }}>
-            <td style={{ ...TD, textAlign: "center" }}>1</td>
-            <td style={TD}>System Capacity</td>
-            <td style={{ ...TD, color: "#999" }}>—</td>
-            <td style={{ ...TD, textAlign: "right", fontWeight: 700, color: BLUE }}>
-              {f.systemCapacity} kWp
-            </td>
-          </tr>
-
-          {/* Row 2 */}
-          <tr style={{ background: "#F5F9FF" }}>
-            <td style={{ ...TD, textAlign: "center" }}>2</td>
-            <td style={TD}>Solar + Infra Price (Rs. / Wp)</td>
-            <td style={{ ...TD, fontWeight: 600 }}>
-              Rs. {ratePerWp.toFixed(0)} / Wp
-            </td>
-            <td style={{ ...TD, textAlign: "right", color: "#999" }}>—</td>
-          </tr>
-
-          {/* Row 3 */}
-          <tr style={{ background: "#fff" }}>
-            <td style={{ ...TD, textAlign: "center" }}>3</td>
-            <td style={TD}>Total Price (excl. GST)</td>
-            <td style={{ ...TD, fontSize: 10.5, color: "#555" }}>
-              {(f.systemCapacity * 1000).toLocaleString("en-IN")} Wp × Rs. {f.ratePerKw}
-            </td>
-            <td style={{ ...TD, textAlign: "right", fontWeight: 700 }}>
-              {inr(c.exGst)}
-            </td>
-          </tr>
-
-          {/* Row 4 */}
-          <tr style={{ background: "#F5F9FF" }}>
-            <td style={{ ...TD, textAlign: "center" }}>4</td>
-            <td style={TD}>Total Price (incl. GST @ 8.9%)</td>
-            <td style={{ ...TD, fontSize: 10.5, color: "#555" }}>
-              {inr(c.exGst)} × 1.089
-            </td>
-            <td style={{ ...TD, textAlign: "right", fontWeight: 700 }}>
-              {inr(inclGst)}
-            </td>
-          </tr>
-
-          {/* Row 5 — only if subsidy > 0 */}
-          {f.subsidyPerKw > 0 && (
-            <tr style={{ background: "#E6F4FF" }}>
-              <td style={{ ...TD, textAlign: "center" }}>5</td>
-              <td style={{ ...TD, color: "#0369a1", fontWeight: 600 }}>
-                PM Surya Ghar Subsidy — {f.systemCapacity} kWp
-              </td>
-              <td style={{ ...TD, fontSize: 10.5, color: "#0369a1" }}>
-                Rs. {f.subsidyPerKw.toLocaleString("en-IN")} × {f.systemCapacity} kWp
-              </td>
-              <td style={{ ...TD, textAlign: "right", fontWeight: 700, color: "#0369a1" }}>
-                − {inr(subsidy)}
-              </td>
-            </tr>
-          )}
-
-          {/* Row 6 — Net cost */}
+          {rows.map(r => {
+            const isPayback = paybackRow?.y === r.y;
+            const isProfitable = r.profit > 0;
+            return (
+              <tr key={r.y} style={{ background: isPayback ? "#FFFBEB" : r.y % 2 === 0 ? "#F5F9FF" : "#fff" }}>
+                <td style={{ padding: "8px 11px", border: "1px solid #d0d7e2", textAlign: "center", fontWeight: isPayback ? 700 : 400, color: isPayback ? ACCENT : "inherit" }}>
+                  {r.y}{isPayback ? " *" : ""}
+                </td>
+                <td style={{ padding: "8px 11px", border: "1px solid #d0d7e2", textAlign: "right" }}>{r.genY.toLocaleString("en-IN")}</td>
+                <td style={{ padding: "8px 11px", border: "1px solid #d0d7e2", textAlign: "right" }}>{r.gridRate.toFixed(2)}</td>
+                <td style={{ padding: "8px 11px", border: "1px solid #d0d7e2", textAlign: "right", fontWeight: 600, color: GREEN }}>{inr(r.savings)}</td>
+                <td style={{ padding: "8px 11px", border: "1px solid #d0d7e2", textAlign: "right", fontWeight: 600 }}>{inr(r.cumSavings)}</td>
+                <td style={{ padding: "8px 11px", border: "1px solid #d0d7e2", textAlign: "right", fontWeight: 700, color: isProfitable ? GREEN : RED }}>
+                  {isProfitable ? "+" : ""}{inr(r.profit)}
+                </td>
+              </tr>
+            );
+          })}
           <tr style={{ background: NAVY }}>
-            <td style={{ padding: "10px 8px", border: "1px solid #d0d7e2", color: "white", textAlign: "center", fontWeight: 700 }}>
-              {f.subsidyPerKw > 0 ? "6" : "5"}
-            </td>
-            <td style={{ padding: "10px 12px", border: "1px solid #d0d7e2", color: "white", fontWeight: 700, fontSize: 12 }}>
-              {f.subsidyPerKw > 0 ? "Net Cost to Client (after subsidy)" : "Net Total (incl. GST)"}
-            </td>
-            <td style={{ padding: "10px 12px", border: "1px solid #d0d7e2", color: "#aac9f0" }}>—</td>
-            <td style={{ padding: "10px 12px", border: "1px solid #d0d7e2", color: ACCENT, fontWeight: 700, fontSize: 15, textAlign: "right" }}>
-              {inr(netCost)}
-            </td>
+            <td colSpan={3} style={{ padding: "10px 12px", border: "1px solid #d0d7e2", color: "white", fontWeight: 700, fontSize: FONT_L }}>TOTAL 25-YEAR SAVINGS</td>
+            <td style={{ padding: "10px 12px", border: "1px solid #d0d7e2", color: ACCENT, fontWeight: 700, textAlign: "right" }}>{inr(total25)}</td>
+            <td style={{ padding: "10px 12px", border: "1px solid #d0d7e2", color: ACCENT, fontWeight: 700, textAlign: "right" }}>{inr(total25)}</td>
+            <td style={{ padding: "10px 12px", border: "1px solid #d0d7e2", color: "#4ade80", fontWeight: 700, textAlign: "right" }}>+{inr(total25 - c.netAfterSubsidy)}</td>
           </tr>
         </tbody>
       </table>
-
-      {/* Payment Schedule */}
-      <NavBar title="Payment Schedule" sub="Milestone-based" />
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <thead>
-          <tr>
-            <th style={{ ...TH, width: "8%" }}></th>
-            <th style={TH}>MILESTONE</th>
-            <th style={{ ...TH, textAlign: "center", width: "14%" }}>%</th>
-            <th style={{ ...TH, textAlign: "right", width: "24%" }}>AMOUNT</th>
-          </tr>
-        </thead>
-        <tbody>
-          {[
-            { l: "T-1", d: "Advance on Purchase Order",     p: "30%", a: c.t1 },
-            { l: "T-2", d: "Material Delivery to Site",     p: "40%", a: c.t2 },
-            { l: "T-3", d: "Installation & Commissioning",  p: "20%", a: c.t3 },
-            { l: "T-4", d: "Net Meter Approval & Handover", p: "10%", a: c.t4 },
-          ].map(r => (
-            <tr key={r.l}>
-              <td style={{ ...TD, background: BLUE, color: "white", textAlign: "center", fontWeight: 700 }}>{r.l}</td>
-              <td style={TD}>{r.d}</td>
-              <td style={{ ...TD, textAlign: "center", fontWeight: 700 }}>{r.p}</td>
-              <td style={{ ...TD, textAlign: "right", fontWeight: 700 }}>{inr(r.a)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div style={{ marginTop: 8, fontSize: FONT_S, color: "#555" }}>
+        * Payback year highlighted. Assumes {GRID_RISE*100}% annual grid tariff escalation and {DEGRADE*100}% panel degradation from Year 2. Actual savings may vary based on usage and local tariff.
+      </div>
     </>
   );
 }
 
-/* ─── PAGE 4 — Warranties + Inclusions/Exclusions ─── */
+/* ─── PAGE 4 — Warranties + Scope + BOM ─── */
 function P4() {
   return (
     <>
-      <NavBar title="Warranties" sub="OEM guaranteed" />
+      <SectionTitle title="Warranties" sub="OEM guaranteed" />
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 14 }}>
+        {[
+          { item: "Solar PV Modules", cov: "Manufacturing Defect", period: "12 Years", color: BLUE2 },
+          { item: "Solar PV Modules", cov: "Linear Performance (80%)", period: "30 Years", color: BLUE2 },
+          { item: "Inverter", cov: "Standard OEM", period: "5 Yrs (ext. 8)", color: "#7C3AED" },
+          { item: "HDG Structure", cov: "Corrosion Warranty", period: "15 Years", color: GREEN },
+          { item: "Balance of System", cov: "OEM Standard", period: "1 Year", color: ACCENT },
+          { item: "Workmanship", cov: "Installation Quality", period: "1 Year", color: ACCENT },
+        ].map((w, i) => (
+          <div key={i} style={{ border: `1px solid ${w.color}30`, borderRadius: 8, padding: "10px 12px", background: "#FAFCFF" }}>
+            <div style={{ fontWeight: 700, color: NAVY, fontSize: FONT }}>{w.item}</div>
+            <div style={{ fontSize: FONT_S, color: "#4B4B4B", marginTop: 2 }}>{w.cov}</div>
+            <div style={{ fontSize: FONT_L, fontWeight: 700, color: w.color, marginTop: 6 }}>{w.period}</div>
+          </div>
+        ))}
+      </div>
+
+      <SectionTitle title="Scope of Work" sub="Inclusions and exclusions" />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
+        <div style={{ background: GREEN_L, borderRadius: 8, padding: "12px 14px" }}>
+          <div style={{ fontWeight: 700, color: GREEN, fontSize: FONT, marginBottom: 8 }}>INCLUDED IN SCOPE</div>
+          {["Solar modules, inverter, structure", "DC and AC cables, connectors, trays", "Earthing system and lightning arrester", "Net meter with LT/CT box", "DISCOM net metering approval", "EAR and Marine insurance", "Commissioning and monitoring setup", "Remote monitoring (1 year free)"].map(i => (
+            <div key={i} style={{ fontSize: FONT, color: "#166534", marginBottom: 4 }}>+ {i}</div>
+          ))}
+        </div>
+        <div style={{ background: RED_L, borderRadius: 8, padding: "12px 14px" }}>
+          <div style={{ fontWeight: 700, color: RED, fontSize: FONT, marginBottom: 8 }}>CLIENT SCOPE (Not Included)</div>
+          {["Water supply at site", "Internet for monitoring", "Power during installation", "Service lift / crane", "Roof access ladder", "Removal of existing system", "Meter merging / load enhancement", "Civil / waterproofing work"].map(i => (
+            <div key={i} style={{ fontSize: FONT, color: "#991b1b", marginBottom: 4 }}>- {i}</div>
+          ))}
+        </div>
+      </div>
+
+      <SectionTitle title="Bill of Material" sub="Key components" />
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
           <tr>
-            <th style={{ ...TH, width: "35%" }}>COMPONENT</th>
-            <th style={TH}>COVERAGE</th>
-            <th style={{ ...TH, textAlign: "center", width: "20%" }}>PERIOD</th>
+            <th style={{ ...TH, width: "4%", textAlign: "center" }}>Sr.</th>
+            <th style={{ ...TH, width: "22%" }}>Item</th>
+            <th style={TH}>Make / Specification</th>
           </tr>
         </thead>
         <tbody>
           {[
-            ["Solar PV Modules",  "Manufacturing Defect",           "12 Years"],
-            ["Solar PV Modules",  "Linear Performance (80% output)", "30 Years"],
-            ["Inverter",          "Standard OEM Warranty",           "5 Years (ext. to 8)"],
-            ["Structure (HDG)",   "Corrosion Warranty",              "15 Years"],
-            ["Balance of System", "OEM Standard",                    "1 Year"],
-            ["Workmanship",       "Installation Quality",            "1 Year"],
-          ].map(([comp, cov, period], i) => (
-            <tr key={i} style={{ background: i % 2 === 0 ? "#fff" : GREEN_LIGHT }}>
-              <td style={{ ...TD, fontWeight: 700, color: NAVY }}>{comp}</td>
-              <td style={TD}>{cov}</td>
-              <td style={{ ...TD, textAlign: "center", fontWeight: 700, color: GREEN_DARK }}>{period}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      <NavBar title="Inclusions & Exclusions" sub="Scope clarity" />
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <thead>
-          <tr>
-            <th style={{ ...TD, background: BLUE,     color: "white", fontWeight: 700, width: "50%", textAlign: "left" }}>
-              ✔&nbsp; INCLUDED IN SCOPE
-            </th>
-            <th style={{ ...TD, background: RED_DARK, color: "white", fontWeight: 700, width: "50%", textAlign: "left" }}>
-              ✘&nbsp; EXCLUDED — CLIENT SCOPE
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td style={{ ...TD, background: GREEN_LIGHT, lineHeight: 1.95, verticalAlign: "top", padding: "12px 16px" }}>
-              {[
-                "Solar modules, inverter, mounting structure",
-                "DC & AC cables, connectors, cable trays",
-                "Earthing system & lightning arrester",
-                "Net meter with LT/CT box",
-                "DISCOM net metering approval",
-                "EAR & Marine insurance till commissioning",
-                "Commissioning, testing & monitoring setup",
-              ].map(i => (
-                <div key={i}>
-                  <span style={{ color: GREEN_DARK, fontWeight: 700, marginRight: 7 }}>✔</span>{i}
-                </div>
-              ))}
-            </td>
-            <td style={{ ...TD, background: RED_LIGHT, lineHeight: 1.95, verticalAlign: "top", padding: "12px 16px" }}>
-              {[
-                "Water supply at site",
-                "Internet for monitoring",
-                "Power during installation",
-                "Service lift / crane",
-                "Roof access ladder",
-                "Removal of existing old system",
-                "Meter merging / load enhancement",
-              ].map(i => (
-                <div key={i}>
-                  <span style={{ color: RED_DARK, fontWeight: 700, marginRight: 7 }}>✘</span>{i}
-                </div>
-              ))}
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </>
-  );
-}
-
-/* ─── PAGE 5 — Appendix: BoM + Scope Matrix ─── */
-function P5({ f }: { f: QuoteForm }) {
-  const bom = [
-    ["1",  "Solar PV Modules",      `Waaree / Premier TopCon Bifacial 580 Wp | BIS Compliant | 0.45% degradation/yr`],
-    ["2",  "String Inverter",       `Waaree String Inverter ${f.systemCapacity} kW String | Grid-tied | Remote monitoring ready`],
-    ["3",  "Mounting Structure",    "Hot-Dip Galvanized (HDG) | SS-304 A2-70 Fasteners | 15-yr warranty"],
-    ["4",  "DC Cables",             "4 mm² Tinned Cu UV-Protected | Waasol | EN-50618 Certified"],
-    ["5",  "DC Connectors (MC4)",   "Siemens | IP67 rated | Weatherproof"],
-    ["6",  "AC Cables",             "Polycab/KEI | Al XLPE Armoured | Bimetallic Lugs | Inv→ACDB→Panel"],
-    ["7",  "AC Distribution Box",   "Schneider/L&T/ABB | MCCB | OC, SC & EL protection | SPD-2"],
-    ["8",  "Earthing System",       "Polycab/KEI | Module-Module: 4 sq mm Cu | Inverter: 16 sq mm Cu"],
-    ["9",  "Earth Pits & LA",       "True Power/Sabo | Maintenance-Free Chemical Pits | Cu-Bonded 250µ"],
-    ["10", "Earth Strip",           "ARMOLEX | 25×3 mm GI Strip"],
-    ["11", "Cable Tray/Conduit",    "HDPE DWC UV (DC) | GI Tray (AC)"],
-    ["12", "Net Meter + LT/CT Box", "As per DISCOM spec | Fully included"],
-    ["13", "Lightning Arrester",    "Standard scope | Included"],
-    ["14", "AC Termination",        "Comet/Dowells | Double-Compression Weatherproof Glands"],
-    ["15", "EPC & Insurance",       "Height-trained team | Zero accident record | EAR + Marine Insurance"],
-    ["16", "DISCOM Approval",       "Net metering registration — fully managed by Omkar Power Solutions"],
-  ];
-
-  const scope = [
-    ["1", "Design & Engineering",  "OPS", "—",   "—"],
-    ["2", "Solar PV Modules",      "OPS", "OPS", "OPS"],
-    ["3", "Inverters",             "OPS", "OPS", "OPS"],
-    ["4", "Mounting Structures",   "OPS", "OPS", "OPS"],
-    ["5", "LT Panels / ACDB",      "OPS", "OPS", "OPS"],
-    ["6", "DC & AC Cables",        "OPS", "OPS", "OPS"],
-    ["7", "Earthing System",       "OPS", "OPS", "OPS"],
-    ["8", "Spare Feeder",          "OPS", "OPS", "OPS"],
-    ["9", "Net Metering & DISCOM", "OPS", "—",   "OPS"],
-  ];
-
-  return (
-    <>
-      <NavBar title="Appendix" sub="Technical details & scope documentation" />
-        <NavBar title="Additional Technical Specifications" />
-        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 8 }}>
-        <thead>
-            <tr>
-            <th style={{ ...TH, width: "18%" }}>Item</th>
-            <th style={{ ...TH, width: "30%" }}>Description</th>
-            <th style={{ ...TH, width: "10%", textAlign: "center" }}>Unit</th>
-            <th style={{ ...TH, width: "12%", textAlign: "center" }}>Qty</th>
-            <th style={TH}>Make / Brand</th>
-            </tr>
-        </thead>
-        <tbody>
-            {/* AC Cable — EDITABLE */}
-            <tr style={{ background: "#fff" }}>
-            <td style={{ ...TD, fontWeight: 700, color: NAVY }}>AC Cable</td>
-            <td style={{ ...TD, color: BLUE, fontWeight: 500 }}>{f.acCableSpec || "—"}</td>
-            <td style={{ ...TD, textAlign: "center" }}>Meter</td>
-            <td style={{ ...TD, textAlign: "center" }}>As per Design</td>
-            <td style={TD}>Havells / RR / Polycab</td>
-            </tr>
-            {/* ACDB — fixed */}
-            <tr style={{ background: "#F5F9FF" }}>
-            <td style={{ ...TD, fontWeight: 700, color: NAVY }}>ACDB</td>
-            <td style={TD}>MCB/MCCB/ACB with protection as per standards with MCB</td>
-            <td style={{ ...TD, textAlign: "center" }}>Nos</td>
-            <td style={{ ...TD, textAlign: "center" }}>As per Design</td>
-            <td style={{ ...TD, fontSize: 9.5 }}>
-                PHOENIXCONTACT / MCB SCHNEIDER / C&S / L&T / ABB / GE / SIEMENS Equivalent,
-                SPDDEHN / OBO METAL ENCLOSURE ACDB SPD HAVELLS / PHOENIX CONTACT WITH NVR
-            </td>
-            </tr>
-            {/* DCDB — fixed */}
-            <tr style={{ background: "#fff" }}>
-            <td style={{ ...TD, fontWeight: 700, color: NAVY }}>DCDB</td>
-            <td style={TD}>MCB/MCCB/ACB with protection as per standards with MCB</td>
-            <td style={{ ...TD, textAlign: "center" }}>Nos</td>
-            <td style={{ ...TD, textAlign: "center" }}>As per Design</td>
-            <td style={{ ...TD, fontSize: 9.5 }}>
-                PHOENIXCONTACT / MCB SCHNEIDER / C&S / L&T / ABB / GE / SIEMENS Equivalent,
-                SPDDEHN / OBO METAL ENCLOSURE ACDB SPD HAVELLS / PHOENIX CONTACT WITH NVR
-            </td>
-            </tr>
-            {/* Earthing — fixed */}
-            <tr style={{ background: "#F5F9FF" }}>
-            <td style={{ ...TD, fontWeight: 700, color: NAVY }}>Earthing</td>
-            <td style={{ ...TD, fontSize: 9.5 }}>
-                3m 17.2mm Dia 250 micron with 12.5kg Chemical Compound Bag with Chamber cover
-            </td>
-            <td style={{ ...TD, textAlign: "center" }}>Nos</td>
-            <td style={{ ...TD, textAlign: "center" }}>As per Design</td>
-            <td style={TD}>Elink / Powertrac / Equivalent</td>
-            </tr>
-            {/* Lightning Arrestor — fixed */}
-            <tr style={{ background: "#fff" }}>
-            <td style={{ ...TD, fontWeight: 700, color: NAVY }}>Lightning Arrestor</td>
-            <td style={{ ...TD, fontSize: 9.5 }}>
-                Conventional LA — Copper Bonded 5 Spike Lightning Arrestor as per IEC-62305 &amp; IS 2309,
-                250µ Multi Point Solid Spike Lightning Arrestor Pipe Dia: 14.2mm, Length: 1.2Mtr,
-                1 set along with Fasteners, clamps, and insulators.
-            </td>
-            <td style={{ ...TD, textAlign: "center" }}>Nos</td>
-            <td style={{ ...TD, textAlign: "center" }}>As per Design</td>
-            <td style={TD}>Elink / Powertrac / Equivalent</td>
-            </tr>
-        </tbody>
-        </table>
-      <NavBar title="Bill of Material" sub="Scope of supply & service" />
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <thead>
-          <tr>
-            <th style={{ ...TH, width: "5%", textAlign: "center" }}>Sr.</th>
-            <th style={{ ...TH, width: "26%" }}>Item</th>
-            <th style={TH}>Make / Specifications</th>
-          </tr>
-        </thead>
-        <tbody>
-          {bom.map(([sr, item, spec], i) => (
+            ["1", "Solar PV Modules", "Waaree / Premier TOPCon Bifacial 580 Wp | BIS | 0.45% degradation"],
+            ["2", "String Inverter", "Waaree String | Grid-tied | Remote monitoring ready"],
+            ["3", "Mounting Structure", "Hot-Dip Galvanized (HDG) | SS-304 fasteners | 15-yr warranty"],
+            ["4", "DC Cables", "4 mm2 Tinned Cu UV-Protected | Waasol | EN-50618"],
+            ["5", "AC Cables", "Polycab/KEI | Al XLPE Armoured | Bimetallic Lugs"],
+            ["6", "ACDB / DCDB", "Schneider/L&T/ABB | MCCB | SPD-2 | OC and SC protection"],
+            ["7", "Earthing", "Chemical Earth Pits 250 micron | 3m Dia 17.2mm | per IS 3043"],
+            ["8", "Lightning Arrester", "Copper Bonded 5-Spike | IEC-62305 and IS 2309"],
+            ["9", "Net Meter + LT/CT Box", "As per DISCOM spec | Fully included and managed"],
+            ["10", "DISCOM Approval", `End-to-end net metering by ${String(COMPANY_DATA.shortName || COMPANY_DATA.name || companySettings.short_name)}`],
+          ].map(([sr, item, spec], i) => (
             <tr key={sr} style={{ background: i % 2 === 0 ? "#fff" : "#F5F9FF" }}>
-              <td style={{ ...TD, textAlign: "center", fontSize: 10.5 }}>{sr}</td>
-              <td style={{ ...TD, fontWeight: 700, color: NAVY, fontSize: 10.5 }}>{item}</td>
-              <td style={{ ...TD, fontSize: 10.5 }}>{spec}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      <NavBar title="Scope of Work Matrix" sub="Design · Supply · Installation" />
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <thead>
-          <tr>
-            <th style={{ ...TH, width: "6%", textAlign: "center" }}>#</th>
-            <th style={TH}>Description</th>
-            <th style={{ ...TH, textAlign: "center", width: "14%" }}>Design</th>
-            <th style={{ ...TH, textAlign: "center", width: "14%" }}>Supply</th>
-            <th style={{ ...TH, textAlign: "center", width: "14%" }}>Install</th>
-          </tr>
-        </thead>
-        <tbody>
-          {scope.map(([num, desc, design, supply, install], i) => (
-            <tr key={num} style={{ background: i % 2 === 0 ? "#fff" : "#F5F9FF" }}>
-              <td style={{ ...TD, textAlign: "center" }}>{num}</td>
-              <td style={{ ...TD, fontWeight: 700 }}>{desc}</td>  
-              {[design, supply, install].map((v, j) => (
-                <td key={j} style={{
-                  ...TD, textAlign: "center", fontWeight: 700,
-                  color: v === "OPS" ? GREEN_DARK : "#999",
-                }}>{v}</td>
-              ))}
+              <td style={{ ...TD, textAlign: "center" }}>{sr}</td>
+              <td style={{ ...TD, fontWeight: 700, color: NAVY }}>{item}</td>
+              <td style={TD}>{spec}</td>
             </tr>
           ))}
         </tbody>
@@ -738,354 +605,400 @@ function P5({ f }: { f: QuoteForm }) {
   );
 }
 
-/* ─── PAGE 6 — Signatures ─── */
-function P6({ f }: { f: QuoteForm }) {
+/* ─── PAGE 5 — Signatures + Clients ───
+   Fix: client logos enlarged (~30-40% bigger across the board) so they
+   genuinely fill the bottom of the page, plus wrapped in a flex column
+   with justifyContent: 'space-between' for full-page spacing. */
+function P5({ f, s }: { f: QuoteForm; s: AppSettings }) {
   return (
-    <>
-      <NavBar title="Acceptance & Signatures" />
-      <div style={{
-        background: LIGHT, border: `1px solid ${BLUE}`, borderRadius: 3,
-        padding: "10px 16px", fontSize: 11.5, lineHeight: 1.6, marginBottom: 20,
-      }}>
-        By signing below, both parties agree to the terms and conditions of this
-        Techno-Commercial Proposal.{" "}
-        <span style={{ color: RED_DARK, fontWeight: 600 }}>
-          Payment milestones as per the schedule above. GST additional as applicable.
-          Proposal valid for 30 days.
-        </span>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", flex: 1, justifyContent: "space-between" }}>
+      <div>
+        <SectionTitle title="Terms and Acceptance" />
+        <div style={{ background: LIGHT, border: `1px solid ${BLUE2}`, borderRadius: 8, padding: "10px 16px", fontSize: FONT, lineHeight: 1.6 }}>
+          By signing below, both parties agree to the Techno-Commercial Proposal terms.{" "}
+          <span style={{ color: RED, fontWeight: 600 }}>Payments as per milestone schedule. GST as applicable. Proposal valid for 30 days from date above.</span>
+        </div>
       </div>
 
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <thead>
-          <tr style={{ background: BLUE, color: "white" }}>
-            <th style={{ padding: "8px 14px", border: "1px solid #d0d7e2", fontWeight: 700, textAlign: "left", width: "50%" }}>
-              FOR OMKAR POWER SOLUTIONS
-            </th>
-            <th style={{ padding: "8px 14px", border: "1px solid #d0d7e2", fontWeight: 700, textAlign: "left" }}>
-              ACCEPTED BY — {f.clientName ? f.clientName.toUpperCase() : "CLIENT"}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td style={{ padding: "55px 20px 20px", border: "1px solid #d0d7e2", verticalAlign: "bottom" }}>
-              <div style={{ borderTop: "1px solid #aaa", paddingTop: 8, fontSize: 10.5 }}>
-                <div style={{ color: "#666" }}>Authorised Signatory</div>
-                <div style={{ fontWeight: 700, marginTop: 3 }}>Name: Omkar Deshmukh</div>
-                <div style={{ marginTop: 2 }}>Designation: Proprietor</div>
-                <div style={{ marginTop: 8 }}>Date: _______________</div>
-                <div style={{ marginTop: 5, color: "#666" }}>Seal:</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        {[
+          { title: `FOR ${s.name.toUpperCase()}`, name: s.proprietor || String(COMPANY_DATA.proprietor || companySettings.proprietor), designation: "Proprietor" },
+          { title: `ACCEPTED BY - ${f.clientName?.toUpperCase() || "CLIENT"}`, name: f.clientName || "___________________", designation: "___________________" },
+        ].map((sig, i) => (
+          <div key={i} style={{ border: "1px solid #d0d7e2", borderRadius: 8, overflow: "hidden" }}>
+            <div style={{ background: i === 0 ? NAVY : BLUE2, color: "white", padding: "8px 14px", fontWeight: 700, fontSize: FONT }}>{sig.title}</div>
+            <div style={{ padding: "40px 16px 16px" }}>
+              <div style={{ borderTop: "1px solid #aaa", paddingTop: 8, fontSize: FONT }}>
+                <div style={{ color: "#4B4B4B" }}>Authorised Signatory</div>
+                <div style={{ fontWeight: 700, marginTop: 4 }}>Name: {sig.name}</div>
+                <div style={{ marginTop: 2 }}>Designation: {sig.designation}</div>
+                <div style={{ marginTop: 8, color: "#4B4B4B" }}>Date: _______________</div>
+                <div style={{ marginTop: 6, color: "#4B4B4B" }}>Seal:</div>
               </div>
-            </td>
-            <td style={{ padding: "55px 20px 20px", border: "1px solid #d0d7e2", verticalAlign: "bottom" }}>
-              <div style={{ borderTop: "1px solid #aaa", paddingTop: 8, fontSize: 10.5 }}>
-                <div style={{ color: "#666" }}>Authorised Signatory</div>
-                <div style={{ fontWeight: 700, marginTop: 3 }}>
-                  Name: {f.clientName || "___________________"}
-                </div>
-                <div style={{ marginTop: 2 }}>Designation: ___________________</div>
-                <div style={{ marginTop: 8 }}>Date: _______________</div>
-                <div style={{ marginTop: 5, color: "#666" }}>Seal:</div>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      <div style={{
-        marginTop: 28, background: NAVY, color: "white",
-        textAlign: "center", padding: "12px", borderRadius: 3,
-        fontSize: 12, fontWeight: 600,
-      }}>
-        <span style={{ color: ACCENT }}>Thank you for choosing Omkar Power Solutions</span>
-        {" "}— Powering a Greener Tomorrow ☀
+            </div>
+          </div>
+        ))}
       </div>
-    </>
+
+      <div>
+        <SectionTitle title="Our Clients" sub="Trusted by leading developers" />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 30, flexWrap: "wrap", padding: "20px 0" }}>
+          <img src="/client_hiranandani.jpeg" alt="Hiranandani" style={{ height: 98, objectFit: "contain" }} />
+          <img src="/client_mahavir.jpeg" alt="Mahavir" style={{ height: 76, objectFit: "contain" }} />
+          <img src="/client_jpinfra.jpeg" alt="JP Infra" style={{ height: 84, objectFit: "contain" }} />
+          <img src="/client_lodha.jpeg" alt="Lodha" style={{ height: 76, objectFit: "contain" }} />
+          <img src="/client_triveni.jpeg" alt="Triveni" style={{ height: 98, objectFit: "contain" }} />
+          <img src="/client_regency.jpeg" alt="Regency" style={{ height: 90, objectFit: "contain" }} />
+          <img src="/client_mohan.jpeg" alt="Mohan Group" style={{ height: 98, objectFit: "contain" }} />
+        </div>
+      </div>
+
+      <div style={{ background: NAVY, color: "white", textAlign: "center", padding: "18px", borderRadius: 8 }}>
+        <div style={{ color: ACCENT, fontWeight: 700, fontSize: FONT_L }}>Thank you for choosing {s.name}</div>
+        <div style={{ color: "#aac9f0", fontSize: FONT, marginTop: 4 }}>Powering a Greener Tomorrow  |  {s.phone}  |  {s.email}</div>
+      </div>
+    </div>
   );
 }
 
 /* ─── Full Document ─── */
-function QuotationDocument({ f, c }: { f: QuoteForm; c: Calc }) {
+function QuotationDocument({ f, c, s, showSiteDetails }: { f: QuoteForm; c: Calc; s: AppSettings; showSiteDetails: boolean }) {
   return (
     <div id="quotation-document">
-      <Page><P1 /></Page>
-      <Page><P2 f={f} c={c} /></Page>
-      <Page><P3 f={f} c={c} /></Page>
-      <Page><P4 /></Page>
-      <Page><P5 f={f} /></Page>
-      <Page><P6 f={f} /></Page>
+      <Page s={s}><P1 f={f} c={c} s={s} showSiteDetails={showSiteDetails} /></Page>
+      <Page s={s}><P2 f={f} c={c} /></Page>
+      <Page s={s}><P3 f={f} c={c} /></Page>
+      <Page s={s}><P4 /></Page>
+      <Page s={s}><P5 f={f} s={s} /></Page>
     </div>
   );
 }
 
-/* ─── Field (outside QuotePage) ─── */
-function Field({
-  label, name, value, onChange, type = "text", placeholder = "",
-}: {
-  label: string;
-  name: keyof QuoteForm;
-  value: string | number;
-  onChange: (e: ChangeEvent<HTMLInputElement>) => void;
-  type?: string;
-  placeholder?: string;
+/* ─── Form Field ─── */
+function Field({ label, name, value, onChange, type = "text", placeholder = "" }: {
+  label: string; name: keyof QuoteForm; value: string | number;
+  onChange: (e: ChangeEvent<HTMLInputElement>) => void; type?: string; placeholder?: string;
 }) {
   return (
     <div>
-      <label className="block text-xs text-gray-400 mb-1.5">{label}</label>
-      <input
-        type={type} name={name} value={value}
-        onChange={onChange} placeholder={placeholder}
-        className="w-full min-w-0 px-4 py-2.5 text-sm rounded-xl bg-gray-800 border border-gray-700 text-white outline-none focus:border-blue-500 placeholder-gray-600"      />
+      <label className="block text-xs font-medium text-gray-500 mb-1">{label}</label>
+      <input type={type} name={name} value={value} onChange={onChange} placeholder={placeholder}
+        className="w-full px-3 py-2 text-sm rounded-lg bg-white border border-gray-200 text-gray-900 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 placeholder-gray-400 transition-all" />
     </div>
   );
 }
 
-/* ─── Main Page ─── */
-export default function QuotePage() {
+function SelectField({ label, name, value, onChange, options }: {
+  label: string; name: keyof QuoteForm; value: string;
+  onChange: (e: ChangeEvent<HTMLSelectElement>) => void; options: string[];
+}) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-gray-500 mb-1">{label}</label>
+      <select name={name} value={value} onChange={onChange}
+        className="w-full px-3 py-2 text-sm rounded-lg bg-white border border-gray-200 text-gray-900 outline-none focus:border-blue-400 transition-all">
+        {options.map(o => <option key={o}>{o}</option>)}
+      </select>
+    </div>
+  );
+}
+
+/* ─── Inner Component ─── */
+function QuotePageInner() {
+  const [showSiteDetails, setShowSiteDetails] = useState(true)
+  const [showPreview, setShowPreview] = useState(true)
   const today = new Date().toISOString().split("T")[0];
   const valid = new Date(); valid.setDate(valid.getDate() + 30);
+  const searchParams = useSearchParams();
+  const settings = companySettings;
 
   const [f, setF] = useState<QuoteForm>({
-  proposalNo: `OPS-${new Date().getFullYear()}-001`,
-  date: today,
-  validUntil: valid.toISOString().split("T")[0],
-  clientName: "",
-  siteAddress: "",
-  contactPerson: "",
-  systemCapacity: 15,
-  ratePerKw: 55,
-  acCableSpec: "4C x 25 sq. mm AL Armoured as per Design", // ← add this
-  subsidyPerKw: 0, // ← add this
-});
+    proposalNo: `${companySettings.short_name}-${new Date().getFullYear()}-001`,
+    date: today,
+    validUntil: valid.toISOString().split("T")[0],
+    clientName: searchParams.get("name") ?? "",
+    siteAddress: searchParams.get("address") ?? "",
+    contactPhone: searchParams.get("phone") ?? "",
+    systemCapacity: Number(searchParams.get("system_size")) || 15,
+    ratePerWp: companySettings.default_rate,
+    subsidyTotal: 0,
+    monthlyBill: 8000,
+    gridRate: 19,
+    roofType: "RCC Flat",
+    floors: "G+4",
+    shadow: "Minimal",
+    projectType: "CAPEX (EPC)",
+    ppaRate: 5.5,
+    acCableSpec: "4C x 25 sq. mm AL Armoured as per Design",
+    batteryKwh: 0,
+  })
+
+  // Company defaults are read from company.config.ts.
+  // Query parameters can still prefill customer details from the Get Quote form.
 
   const [busy, setBusy] = useState(false);
+  const [shareHint, setShareHint] = useState<string | null>(null);
   const c = compute(f);
 
   const onChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setF(p => ({
-      ...p,
-      [name]: name === "systemCapacity" || name === "ratePerKw"
-        ? parseFloat(value) || 0 : value,
-    }));
+    const numFields = ["systemCapacity","ratePerWp","subsidyTotal","monthlyBill","gridRate","ppaRate","batteryKwh"];
+    setF(p => ({ ...p, [name]: numFields.includes(name) ? parseFloat(value) || 0 : value }));
+  };
+
+  const onSelect = (e: ChangeEvent<HTMLSelectElement>) => {
+    setF(p => ({ ...p, [e.target.name]: e.target.value }));
+  };
+
+  const buildPdf = async () => {
+    const html2canvas = (await import("html2canvas")).default;
+    const jsPDF = (await import("jspdf")).default;
+    const pages = document.querySelectorAll<HTMLElement>(".quote-page");
+    const pdf = new jsPDF("p", "mm", "a4");
+    const pw = pdf.internal.pageSize.getWidth();
+    const ph = pdf.internal.pageSize.getHeight();
+    for (let i = 0; i < pages.length; i++) {
+      const canvas = await html2canvas(pages[i], { scale: 2, useCORS: true, logging: false, backgroundColor: "#ffffff", windowWidth: 794 });
+      const img = canvas.toDataURL("image/png");
+      const ih = (canvas.height * pw) / canvas.width;
+      if (i > 0) pdf.addPage();
+      pdf.addImage(img, "PNG", 0, ih < ph ? (ph - ih) / 2 : 0, pw, Math.min(ih, ph));
+    }
+    return pdf;
   };
 
   const downloadPDF = async () => {
     setBusy(true);
+    try { const pdf = await buildPdf(); pdf.save(`Proposal for ${f.clientName || "Client"} ${f.systemCapacity} KW.pdf`); }
+    finally { setBusy(false); }
+  };
+
+  // Rewritten to fix the "blob: link shared instead of the PDF" issue.
+  //
+  // Root cause: the previous version gated navigator.share behind a
+  // regex test on navigator.userAgent. That test is unreliable (many
+  // mobile browsers — iPadOS Safari in particular — don't match it), so
+  // it silently fell into the "else" branch: pdf.save() downloads the
+  // file, which on mobile opens the PDF in a browser tab at a blob:
+  // address. If the browser's own share icon on THAT tab gets tapped
+  // (not this app's WhatsApp button), the browser shares its tab's
+  // blob: URL as a plain link — which is dead the moment it leaves that
+  // browser, since blob: URLs only exist inside the tab that created
+  // them. That's exactly the broken link in the screenshot.
+  //
+  // Fix: try the real file-share path directly (Web Share API's
+  // canShare is a much more reliable capability check than UA
+  // sniffing). If it's genuinely unsupported, download the PDF and show
+  // an explicit on-screen instruction to attach it manually inside
+  // WhatsApp — never rely on sharing the browser tab itself.
+  const shareWhatsApp = async () => {
+    setBusy(true);
+    setShareHint(null);
     try {
-      const html2canvas = (await import("html2canvas")).default;
-      const jsPDF = (await import("jspdf")).default;
-      const pages = document.querySelectorAll<HTMLElement>(".quote-page");
-      if (!pages.length) return;
-      const pdf = new jsPDF("p", "mm", "a4");
-      const pw = pdf.internal.pageSize.getWidth();
-      const ph = pdf.internal.pageSize.getHeight();
-      for (let i = 0; i < pages.length; i++) {
-        const canvas = await html2canvas(pages[i], {
-          scale: 2, useCORS: true, logging: false,
-          backgroundColor: "#ffffff", windowWidth: 794,
-        });
-        const img = canvas.toDataURL("image/png");
-        const ih = (canvas.height * pw) / canvas.width;
-        if (i > 0) pdf.addPage();
-        const yOff = ih < ph ? (ph - ih) / 2 : 0;
-        pdf.addImage(img, "PNG", 0, yOff, pw, Math.min(ih, ph));
+      const pdf = await buildPdf();
+      const fileName = `Proposal_${f.clientName || "Client"}_${f.systemCapacity}KW.pdf`;
+      const msg = [
+        `Hello ${f.clientName || ""},`,
+        ``,
+        `Greetings from *${settings.name}*!`,
+        ``,
+        `*Proposal Highlights:*`,
+        `System: ${f.systemCapacity} kWp (${c.panels} Panels x 580 Wp)`,
+        `Total Investment (incl. GST): ${inrFull(c.net)}`,
+        ...(f.subsidyTotal > 0 ? [`After Subsidy (Net Payable): ${inrFull(c.netAfterSubsidy)}`] : []),
+        `Year 1 Bill Savings: ${inrFull(c.annualSavingsY1)}`,
+        `Payback Period: ${c.paybackYears} years`,
+        `25-Year Total Savings: ${lakh(totalSavings25(f, c.gen))}`,
+        ``,
+        `Contact: ${settings.phone}`,
+        `Email: ${settings.email}`,
+        ``,
+        `*${settings.name}* - Powering a Greener Tomorrow`,
+      ].join("\n");
+
+      const file = new File([pdf.output("blob")], fileName, { type: "application/pdf" });
+      const canShareFile = typeof navigator !== "undefined" && !!navigator.canShare?.({ files: [file] });
+
+      if (canShareFile) {
+        // This is the only path that actually sends the real PDF file.
+        await navigator.share({ files: [file], text: msg });
+      } else {
+        // Genuine fallback for desktop or browsers without file sharing:
+        // download the PDF, open WhatsApp with the text only, and tell
+        // the user exactly what to do next — don't leave them to
+        // improvise by sharing the downloaded tab's URL.
+        pdf.save(fileName);
+        const phone = f.contactPhone.replace(/\D/g, "");
+        window.open(
+          phone.length >= 10
+            ? `https://wa.me/91${phone.slice(-10)}?text=${encodeURIComponent(msg)}`
+            : `https://wa.me/?text=${encodeURIComponent(msg)}`,
+          "_blank"
+        );
+        setShareHint(
+          "Your browser can't attach the file automatically. The PDF has been downloaded, and WhatsApp opened with the message text — in WhatsApp, tap the attachment (📎) icon, choose Document, and select the downloaded PDF from your Downloads folder. Don't share the browser tab or its link — that link won't open for the client."
+        );
       }
-      pdf.save(`Proposal for ${f.clientName || "Client"} ${f.systemCapacity} KW.pdf`);
-    } finally { setBusy(false); }
+    } catch (err) {
+      console.error(err);
+      alert("Could not share. Try Download PDF and attach it manually in WhatsApp.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gray-950">
-      <nav className="border-b border-gray-800 px-6 h-16 flex items-center gap-4">
-        <Link href="/"
-          className="flex items-center gap-2 text-sm text-gray-300 hover:text-white px-4 py-2 rounded-xl"
-          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}>
-          <span className="text-blue-400">←</span><span>Home</span>
-        </Link>
-        <div className="flex items-center gap-2">
-          <Image src="/logo.png" alt="OPS" width={28} height={28} className="object-contain" />
-          <span className="text-white font-medium">OPS — Quotation Generator</span>
-        </div>
-      </nav>
-
-      <div className="max-w-7xl mx-auto px-6 py-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-
-        {/* Form */}
-        <div className="rounded-2xl p-6 h-fit md:sticky md:top-6"
-          style={{
-            background: "rgba(255,255,255,0.03)",
-            border: "1px solid rgba(255,255,255,0.08)",
-            backdropFilter: "blur(20px)",
-          }}>
-          <h2 className="text-lg font-medium text-white mb-1">Fill Client Details</h2>
-          <p className="text-xs text-gray-500 mb-6">Preview updates live</p>
-          <div className="flex flex-col gap-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label="Proposal No." name="proposalNo" value={f.proposalNo} onChange={onChange} />
-                <Field label="Date" name="date" type="date" value={f.date} onChange={onChange} />
-            </div>
-            <Field label="Client / Society Name" name="clientName" value={f.clientName} onChange={onChange}
-              placeholder="e.g. Neelkanth Srushti Vaidyanath" />
-            <Field label="Site Address" name="siteAddress" value={f.siteAddress} onChange={onChange}
-              placeholder="e.g. Kalyan East, Maharashtra" />
-            <Field label="Contact Person / Phone" name="contactPerson" value={f.contactPerson} onChange={onChange}
-              placeholder="e.g. 9594339594" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="System Capacity (kWp)" name="systemCapacity" type="number"
-                value={f.systemCapacity} onChange={onChange} />
-              <Field
-                    label="Rate (Rs./Wp excl. GST)"
-                    name="ratePerKw"
-                    type="number"
-                    value={f.ratePerKw}
-                    onChange={onChange}
-                    />
-                <Field
-                    label="Govt. Subsidy (Rs.) — 0 if none"
-                    name="subsidyPerKw"
-                    type="number"
-                    value={f.subsidyPerKw}
-                    onChange={onChange}
-                    placeholder="e.g. 270000"
-                    />
-            </div>
-            <Field label="Valid Until" name="validUntil" type="date" value={f.validUntil} onChange={onChange} />
-            <Field
-            label="AC Cable Spec"
-            name="acCableSpec"
-            value={f.acCableSpec}
-            onChange={onChange}
-            placeholder="e.g. 4C x 25 sq. mm AL Armoured as per Design"
-            />
-            {/* Auto-calc */}
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 mt-1">
-              <p className="text-xs text-gray-500 mb-3">Auto-calculated:</p>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                {[
-                  ["Panels",          `${c.panels} × 580 Wp`],
-                  ["Est. generation", `${c.gen.toLocaleString("en-IN")} kWh/yr`],
-                  ["Excl. GST",       inr(c.exGst)],
-                  ["GST @ 8.9%",      inr(c.gst)],
-                  ["Net Total",       inr(c.net)],
-                  ...(f.subsidyPerKw > 0 ? [
-                  ["Subsidy", `− ${inr(c.subsidy)}`],
-                  ["Net payable", inr(c.netAfterSubsidy)],
-                  ] as [string, string][] : []),
-                  ["T-1 (30%)",       inr(c.t1)],
-                  ["T-2 (40%)",       inr(c.t2)],
-                  ["T-3 (20%)",       inr(c.t3)],
-                  ["T-4 (10%)",       inr(c.t4)],
-                ].map(([l, v]) => (
-                  <div key={l} className="contents">
-                    <div className="text-gray-400">{l}:</div>
-                    <div className={`font-medium ${l === "Net Total" ? "text-yellow-400" : "text-white"}`}>{v}</div>
-                    
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex gap-2">
+    <div className="min-h-screen bg-[#F4F6F9]">
+      <div className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-10">
+        <div className="flex items-center justify-between max-w-7xl mx-auto">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Quotation Generator</h1>
+            <p className="text-sm text-gray-500 mt-0.5">Auto-filled from lead · edit any field</p>
+          </div>
+          <div className="flex gap-2">
             <button onClick={downloadPDF} disabled={busy}
-                className="flex-1 bg-green-600 hover:bg-green-500 disabled:bg-gray-700 text-white text-sm font-medium py-3 rounded-xl transition-colors">
-                {busy ? "Generating…" : "⬇ Download PDF"}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white disabled:opacity-50 transition-all"
+              style={{ background: '#1A4F8A' }}>
+              {busy ? "Generating..." : "Download PDF"}
             </button>
-            <button onClick={() => window.print()}
-                className="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium py-3 rounded-xl transition-colors">
-                🖨 Print
+            <button onClick={shareWhatsApp} disabled={busy}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white disabled:opacity-50 transition-all"
+              style={{ background: "#25D366" }}>
+              WhatsApp
             </button>
+          </div>
+        </div>
+        {shareHint && (
+          <div className="max-w-7xl mx-auto mt-3 text-xs leading-relaxed text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+            {shareHint}
+          </div>
+        )}
+      </div>
+
+      <div className="max-w-7xl mx-auto px-6 py-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="space-y-4 lg:sticky lg:top-24 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto pr-1">
+
+          <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+              <span className="w-1.5 h-4 rounded bg-blue-600 inline-block" />Client Details
+            </h2>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Proposal No." name="proposalNo" value={f.proposalNo} onChange={onChange} />
+              <Field label="Date" name="date" type="date" value={f.date} onChange={onChange} />
+              <div className="col-span-2"><Field label="Client / Society Name" name="clientName" value={f.clientName} onChange={onChange} placeholder="e.g. Siddhi City CHS" /></div>
+              <div className="col-span-2"><Field label="Site Address" name="siteAddress" value={f.siteAddress} onChange={onChange} placeholder="e.g. Badlapur, Maharashtra" /></div>
+              <Field label="Contact Phone" name="contactPhone" value={f.contactPhone} onChange={onChange} placeholder="9876543210" />
+              <Field label="Valid Until" name="validUntil" type="date" value={f.validUntil} onChange={onChange} />
             </div>
+          </div>
 
-            <button
-  onClick={async () => {
-  setBusy(true);
-  try {
-    const html2canvas = (await import("html2canvas")).default;
-    const jsPDF = (await import("jspdf")).default;
-    const pages = document.querySelectorAll<HTMLElement>(".quote-page");
-    if (!pages.length) return;
+          <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+              <span className="w-1.5 h-4 rounded bg-amber-500 inline-block" />Site Details
+            </h2>
+            <div className="grid grid-cols-2 gap-3">
+              <SelectField label="Roof Type" name="roofType" value={f.roofType} onChange={onSelect} options={["RCC Flat","Mangalore Tile","GI Sheet","Trapezoidal","Terrace"]} />
+              <SelectField label="Shadow" name="shadow" value={f.shadow} onChange={onSelect} options={["None","Minimal","Moderate","Heavy"]} />
+              <Field label="Floors (e.g. G+4)" name="floors" value={f.floors} onChange={onChange} placeholder="G+4" />
+              <SelectField label="Project Type" name="projectType" value={f.projectType} onChange={onSelect} options={["CAPEX (EPC)","OPEX / PPA","AMC","Hybrid"]} />
+            </div>
+          </div>
 
-    const pdf = new jsPDF("p", "mm", "a4");
-    const pw = pdf.internal.pageSize.getWidth();
-    const ph = pdf.internal.pageSize.getHeight();
+          <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+              <span className="w-1.5 h-4 rounded bg-amber-500 inline-block" />Proposal Options
+            </h2>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-sm font-medium text-gray-700">Show Site Details in PDF</p>
+                <p className="text-xs text-gray-400 mt-0.5">Roof type, floors, shading on cover page</p>
+              </div>
+              <button onClick={() => setShowSiteDetails(p => !p)}
+                className={`w-12 h-6 rounded-full transition-all relative ${showSiteDetails ? 'bg-blue-600' : 'bg-gray-200'}`}>
+                <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${showSiteDetails ? 'left-7' : 'left-1'}`} />
+              </button>
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-700">Show PDF Preview</p>
+                <p className="text-xs text-gray-400 mt-0.5">Hide for faster performance</p>
+              </div>
+              <button onClick={() => setShowPreview(p => !p)}
+                className={`w-12 h-6 rounded-full transition-all relative ${showPreview ? 'bg-blue-600' : 'bg-gray-200'}`}>
+                <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${showPreview ? 'left-7' : 'left-1'}`} />
+              </button>
+            </div>
+          </div>
 
-    for (let i = 0; i < pages.length; i++) {
-      const canvas = await html2canvas(pages[i], {
-        scale: 2, useCORS: true, logging: false,
-        backgroundColor: "#ffffff", windowWidth: 794,
-      });
-      const img = canvas.toDataURL("image/png");
-      const ih = (canvas.height * pw) / canvas.width;
-      if (i > 0) pdf.addPage();
-      const yOff = ih < ph ? (ph - ih) / 2 : 0;
-      pdf.addImage(img, "PNG", 0, yOff, pw, Math.min(ih, ph));
-    }
+          <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+              <span className="w-1.5 h-4 rounded bg-green-600 inline-block" />System & Pricing
+            </h2>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="System Capacity (kWp)" name="systemCapacity" type="number" value={f.systemCapacity} onChange={onChange} />
+              <Field label="Rate (Rs./Wp excl. GST)" name="ratePerWp" type="number" value={f.ratePerWp} onChange={onChange} />
+              <Field label="Govt. Subsidy Total (Rs.) — 0 if none" name="subsidyTotal" type="number" value={f.subsidyTotal} onChange={onChange} placeholder="270000" />
+              <Field label="Battery Capacity (kWh) — 0 if none" name="batteryKwh" type="number" value={f.batteryKwh} onChange={onChange} placeholder="0" />
+              {f.projectType === "OPEX / PPA" && (
+                <Field label="PPA Rate (Rs./kWh)" name="ppaRate" type="number" value={f.ppaRate} onChange={onChange} />
+              )}
+              <div className="col-span-2"><Field label="AC Cable Spec" name="acCableSpec" value={f.acCableSpec} onChange={onChange} /></div>
+            </div>
+          </div>
 
-    const fileName = `Proposal_${f.clientName || "Client"}_${f.systemCapacity}KW.pdf`;
+          <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+              <span className="w-1.5 h-4 rounded bg-purple-600 inline-block" />Financial Inputs
+            </h2>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Monthly Electricity Bill (Rs.)" name="monthlyBill" type="number" value={f.monthlyBill} onChange={onChange} />
+              <Field label="Current Grid Rate (Rs./kWh)" name="gridRate" type="number" value={f.gridRate} onChange={onChange} />
+            </div>
+          </div>
 
-    const msg = `Hello ${f.clientName || ""},
-
-Greetings from *Omkar Power Solutions*! ☀
-
-Please find attached the Techno-Commercial Proposal for your reference.
-
-*Proposal Details:*
-⚡ System: ${f.systemCapacity} kWp (${c.panels} Panels × 580 Wp)
-💰 Net Total: ${inr(c.net)}${c.subsidy > 0 ? `\n🏛 Govt. Subsidy: − ${inr(c.subsidy)}\n✅ Net Payable: ${inr(c.netAfterSubsidy)}` : ""}
-📅 Valid Until: ${fmtDate(f.validUntil)}
-
-For any queries:
-📞 8452035102
-✉ omkarpowersolutions16@gmail.com
-
-Thank you for choosing Omkar Power Solutions — *Powering a Greener Tomorrow* 🌱`;
-
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    const pdfBlob = pdf.output("blob");
-    const file = new File([pdfBlob], fileName, { type: "application/pdf" });
-
-    if (isMobile && navigator.canShare && navigator.canShare({ files: [file] })) {
-      // Mobile — native share sheet with PDF file
-      await navigator.share({ files: [file], text: msg });
-    } else {
-      // Desktop — step 1: download PDF, step 2: open WhatsApp with message
-      pdf.save(fileName);
-
-      // Small delay so PDF download starts before WhatsApp opens
-      await new Promise(res => setTimeout(res, 1000));
-
-      const encoded = encodeURIComponent(msg);
-      const phone = f.contactPerson.replace(/\D/g, "");
-      const url = phone.length >= 10
-        ? `https://wa.me/91${phone.slice(-10)}?text=${encoded}`
-        : `https://wa.me/?text=${encoded}`;
-      window.open(url, "_blank");
-    }
-  } catch (err) {
-    console.error("Share error:", err);
-    alert("Could not share. Please download the PDF and send manually.");
-  } finally {
-    setBusy(false);
-  }
-}}
-  disabled={busy}
-  className="w-full bg-[#25D366] hover:bg-[#1ebe5d] disabled:bg-gray-700 text-white text-sm font-medium py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
->
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
-    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-  </svg>
-  {busy ? "Preparing…" : "📤 Share on WhatsApp"}
-</button>
+          <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5">
+            <h2 className="text-sm font-semibold text-blue-800 mb-3">Auto-calculated</h2>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
+              {[
+                ["Panels", `${c.panels} x 580 Wp`],
+                ["Generation", `${c.gen.toLocaleString("en-IN")} kWh/yr`],
+                ["Excl. GST", inrFull(c.exGst)],
+                ["GST @ 8.9%", inrFull(c.gst)],
+                ["Net Total", inrFull(c.net)],
+                ...(f.subsidyTotal > 0 ? [["Subsidy", `- ${inrFull(c.subsidy)}`], ["Net Payable", inrFull(c.netAfterSubsidy)]] as [string,string][] : []),
+                ["Year 1 Savings", inrFull(c.annualSavingsY1)],
+                ["Payback", `${c.paybackYears} years`],
+                ["25-yr Returns", lakh(totalSavings25(f, c.gen))],
+                ["ROI", `${c.roi25}%`],
+                ["T-1 (30%)", inrFull(c.t1)],
+                ["T-2 (40%)", inrFull(c.t2)],
+                ["T-3 (20%)", inrFull(c.t3)],
+                ["T-4 (10%)", inrFull(c.t4)],
+              ].map(([l, v]) => (
+                <div key={l} className="contents">
+                  <div className="text-blue-600">{l}:</div>
+                  <div className={`font-semibold ${l === "Net Total" || l === "Net Payable" || l === "25-yr Returns" ? "text-blue-800" : "text-gray-800"}`}>{v}</div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* Preview */}
-        <div className="overflow-auto rounded-2xl border border-gray-800"
-          style={{ maxHeight: "90vh", background: "#e5e7eb" }}>
-          <div style={{ padding: 16 }}>
-            <QuotationDocument f={f} c={c} />
-          </div>
+        <div className="overflow-auto rounded-2xl border border-gray-200" style={{ maxHeight: "88vh", background: "#e5e7eb" }}>
+          {showPreview ? (
+            <div style={{ padding: 16 }}>
+              <QuotationDocument f={f} c={c} s={settings} showSiteDetails={showSiteDetails} />
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-64 gap-4">
+              <p className="text-sm text-gray-500">Preview hidden</p>
+              <button onClick={() => setShowPreview(true)}
+                className="px-4 py-2.5 rounded-xl text-sm font-medium text-white"
+                style={{ background: '#1A4F8A' }}>
+                Show Preview
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1094,9 +1007,17 @@ Thank you for choosing Omkar Power Solutions — *Powering a Greener Tomorrow* �
           body * { visibility: hidden; }
           #quotation-document, #quotation-document * { visibility: visible; }
           #quotation-document { position: fixed; top: 0; left: 0; width: 100%; }
-          .quote-page { page-break-after: always; margin: 0 !important; box-shadow: none !important; }
+          .quote-page { page-break-after: always; margin: 0 !important; }
         }
       `}</style>
     </div>
+  );
+}
+
+export default function QuotePage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-sm text-gray-500">Loading...</div>}>
+      <QuotePageInner />
+    </Suspense>
   );
 }

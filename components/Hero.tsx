@@ -64,8 +64,11 @@ export default function Hero() {
               {COMPANY.shortName} uses AI to calculate your savings, find subsidies, and monitor your system — built for Indian homeowners.
             </p>
             <div className="flex gap-3 justify-center flex-wrap">
-              <Link href="/signup" className="bg-yellow-400 hover:bg-yellow-300 text-gray-950 text-sm font-medium px-8 py-3 rounded-lg transition-colors">
-                Get started free
+              <Link
+                href="/quote"
+                className="bg-yellow-400 hover:bg-yellow-300 text-gray-950 text-sm font-medium px-8 py-3 rounded-lg transition-colors"
+              >
+                Get Quote
               </Link>
               <Link href="/login" className="bg-white/10 hover:bg-white/20 border border-white/20 text-white text-sm font-medium px-8 py-3 rounded-lg backdrop-blur-sm transition-colors">
                 Sign in
