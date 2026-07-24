@@ -1,6 +1,7 @@
 "use client";
 import { useState, type ChangeEvent, type ReactNode, type CSSProperties, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import COMPANY from "@/lib/company.config";
 
 export const dynamic = 'force-dynamic'
@@ -270,7 +271,7 @@ function P1({ f, c, s, showSiteDetails }: { f: QuoteForm; c: Calc; s: AppSetting
       {/* KPI strip */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginTop: 12 }}>
         <KpiCard label="System Size" value={`${f.systemCapacity} kWp`} sub={`${c.panels} Panels`} color={BLUE2} bg="#EEF5FF" />
-        <KpiCard label="Est. Generation" value={`${(c.gen/1000).toFixed(1)}k kWh`} sub="Per year" color={GREEN} bg={GREEN_L} />
+        <KpiCard label="Est. Generation" value={`${c.gen.toLocaleString("en-IN")} kWh`} sub="Per year" color={GREEN} bg={GREEN_L} />
         <KpiCard label="Year 1 Savings" value={lakh(c.annualSavingsY1)} sub="Bill savings est." color={ACCENT} bg="#FFF8EE" />
         <KpiCard label="Payback Period" value={`${c.paybackYears} yrs`} sub="Simple payback" color="#7C3AED" bg="#F3EEFF" />
       </div>
@@ -935,9 +936,18 @@ function QuotePageInner() {
     <div className="min-h-screen bg-[#F4F6F9]">
       <div className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-10">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">Quotation Generator</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Auto-filled from lead · edit any field</p>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/"
+              className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 px-3 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors"
+            >
+              <span>←</span>
+              <span>Back</span>
+            </Link>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Quotation Generator</h1>
+              <p className="text-sm text-gray-500 mt-0.5">Auto-filled from lead · edit any field</p>
+            </div>
           </div>
           <div className="flex gap-2">
             <button onClick={downloadPDF} disabled={busy}

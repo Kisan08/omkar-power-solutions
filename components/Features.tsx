@@ -4,16 +4,6 @@ import { useRouter } from "next/navigation";
 
 const features = [
   {
-    icon: "🧮",
-    title: "Smart Savings Calculator",
-    desc: "Enter your address and bill. AI estimates your panel count, ROI, and exact monthly savings instantly.",
-    href: "/dashboard",
-    cta: "Calculate now",
-    glow: "rgba(59,130,246,0.15)",
-    border: "rgba(59,130,246,0.3)",
-    iconBg: "rgba(59,130,246,0.2)",
-  },
-  {
     icon: "🤖",
     title: "Aryan — AI Solar Advisor",
     desc: "Chat with Aryan, your personal AI solar expert. Available 24/7 for recommendations, comparisons, and guidance.",

@@ -1,7 +1,9 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import COMPANY from "@/lib/company.config";
+import { supabase } from "@/lib/supabase/client";
 
 const cards = [
   {
@@ -36,7 +38,17 @@ const cards = [
 const defaultBg = "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?w=1600&q=80";
 
 export default function Hero() {
+  const router = useRouter();
   const [activeCard, setActiveCard] = useState<string | null>(null);
+
+  const handleGetStarted = async () => {
+    const { data } = await supabase.auth.getSession();
+    if (data.session) {
+      router.push("/quote");
+    } else {
+      router.push("/login");
+    }
+  };
 
   return (
     <section className="relative min-h-screen flex flex-col justify-between overflow-hidden pt-24">
@@ -64,12 +76,12 @@ export default function Hero() {
               {COMPANY.shortName} uses AI to calculate your savings, find subsidies, and monitor your system — built for Indian homeowners.
             </p>
             <div className="flex gap-3 justify-center flex-wrap">
-              <Link
-                href="/quote"
+              <button
+                onClick={handleGetStarted}
                 className="bg-yellow-400 hover:bg-yellow-300 text-gray-950 text-sm font-medium px-8 py-3 rounded-lg transition-colors"
               >
                 Get Quote
-              </Link>
+              </button>
               <Link href="/login" className="bg-white/10 hover:bg-white/20 border border-white/20 text-white text-sm font-medium px-8 py-3 rounded-lg backdrop-blur-sm transition-colors">
                 Sign in
               </Link>

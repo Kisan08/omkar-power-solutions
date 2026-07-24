@@ -2,6 +2,8 @@
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase/client";
 
 const stats = [
   { label: "Generation", value: "4.2", unit: "kW", change: "+12%" },
@@ -10,8 +12,36 @@ const stats = [
   { label: "Health", value: "98", unit: "%", change: "Normal" },
 ];
 
+const ADMIN_EMAIL = "omkarpowersolutions16@gmail.com";
+
 export default function DashboardPage() {
-  const user = { firstName: "Omkar" };
+  const router = useRouter();
+  const [authChecking, setAuthChecking] = useState(true);
+  const [firstName, setFirstName] = useState("Omkar");
+  const [isAdmin, setIsAdmin] = useState(false);
+  const user = { firstName };
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (!data.session) {
+        router.replace("/login");
+        return;
+      }
+      const metaName = data.session.user.user_metadata?.full_name as string | undefined;
+      if (metaName) setFirstName(metaName.split(" ")[0]);
+      setIsAdmin(data.session.user.email === ADMIN_EMAIL);
+      setAuthChecking(false);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT" || !session) {
+        router.replace("/login");
+      }
+    });
+
+    return () => listener.subscription.unsubscribe();
+  }, [router]);
+
   const [messages, setMessages] = useState([
     { role: "assistant", text: "Hi! I'm your AI solar advisor. Ask me anything about your system, savings, or maintenance." },
   ]);
@@ -172,6 +202,14 @@ export default function DashboardPage() {
     setLoading(false);
   };
 
+  if (authChecking) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-gray-600 border-t-blue-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-950 text-white">
 
@@ -214,6 +252,15 @@ export default function DashboardPage() {
             className="p-2 rounded-lg border border-gray-700 text-gray-400 hover:bg-gray-800 text-sm"
           >
             🌙
+          </button>
+          <button
+            onClick={async () => {
+              await supabase.auth.signOut();
+              router.replace("/login");
+            }}
+            className="px-3 py-2 rounded-lg border border-gray-700 text-gray-400 hover:bg-gray-800 text-sm"
+          >
+            Log out
           </button>
         </div>
       </nav>
@@ -260,6 +307,58 @@ export default function DashboardPage() {
               <div className="text-xs text-blue-400 mt-1">{s.change}</div>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="max-w-5xl mx-auto px-6 mb-8">
+        <div className={`grid grid-cols-1 sm:grid-cols-2 ${isAdmin ? "lg:grid-cols-3" : ""} gap-4`}>
+          <Link
+            href="/crm"
+            className="group bg-gray-900 border border-gray-800 hover:border-blue-700 rounded-2xl p-6 flex items-center justify-between transition-colors"
+            style={{ boxShadow: "0 0 20px rgba(59,130,246,0.05)" }}
+          >
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-2 h-2 rounded-full bg-blue-500" />
+                <h3 className="text-sm font-medium text-white">CRM</h3>
+              </div>
+              <p className="text-xs text-gray-500">Manage leads, calls, and follow-ups</p>
+            </div>
+            <span className="text-blue-400 group-hover:translate-x-1 transition-transform">→</span>
+          </Link>
+
+          <Link
+            href="/quote"
+            className="group bg-gray-900 border border-gray-800 hover:border-yellow-600 rounded-2xl p-6 flex items-center justify-between transition-colors"
+            style={{ boxShadow: "0 0 20px rgba(251,191,36,0.05)" }}
+          >
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-2 h-2 rounded-full bg-yellow-400" />
+                <h3 className="text-sm font-medium text-white">Get Quote</h3>
+              </div>
+              <p className="text-xs text-gray-500">Generate a new solar proposal</p>
+            </div>
+            <span className="text-yellow-400 group-hover:translate-x-1 transition-transform">→</span>
+          </Link>
+
+          {isAdmin && (
+            <Link
+              href="/admin/users"
+              className="group bg-gray-900 border border-gray-800 hover:border-purple-600 rounded-2xl p-6 flex items-center justify-between transition-colors"
+              style={{ boxShadow: "0 0 20px rgba(168,85,247,0.05)" }}
+            >
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-2 h-2 rounded-full bg-purple-400" />
+                  <h3 className="text-sm font-medium text-white">Admin</h3>
+                </div>
+                <p className="text-xs text-gray-500">Track signups and last logins</p>
+              </div>
+              <span className="text-purple-400 group-hover:translate-x-1 transition-transform">→</span>
+            </Link>
+          )}
         </div>
       </div>
 
