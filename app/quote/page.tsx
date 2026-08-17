@@ -288,7 +288,7 @@ function P1({ f, c, s, showSiteDetails }: { f: QuoteForm; c: Calc; s: AppSetting
               </div>
             ))}
           </div>
-          <div style={{ background: GRAY, borderRadius: 8, padding: "12px 14px" }}>
+          {/* <div style={{ background: GRAY, borderRadius: 8, padding: "12px 14px" }}>
             <div style={{ fontSize: FONT_S, color: "#555", fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 8 }}>Site Details</div>
             {[["Roof Type", f.roofType], ["Floors", f.floors], ["Shading", f.shadow], ["Contact", f.contactPhone]].map(([k, v]) => (
               <div key={k} style={{ display: "flex", justifyContent: "space-between", fontSize: FONT, paddingBottom: 5, borderBottom: "1px solid #e5e7eb", marginBottom: 5 }}>
@@ -296,7 +296,7 @@ function P1({ f, c, s, showSiteDetails }: { f: QuoteForm; c: Calc; s: AppSetting
                 <span style={{ fontWeight: 600, color: NAVY }}>{v || "—"}</span>
               </div>
             ))}
-          </div>
+          </div> */}
         </div>
       ) : (
         <div style={{ background: GRAY, borderRadius: 8, padding: "12px 14px", marginTop: 10 }}>
