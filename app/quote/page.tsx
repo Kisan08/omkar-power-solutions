@@ -277,7 +277,7 @@ function P1({ f, c, s, showSiteDetails }: { f: QuoteForm; c: Calc; s: AppSetting
       </div>
 
       {/* Proposal + Site Details */}
-      {showSiteDetails ? (
+      {/* {showSiteDetails ? (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
           <div style={{ background: GRAY, borderRadius: 8, padding: "12px 14px" }}>
             <div style={{ fontSize: FONT_S, color: "#555", fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 8 }}>Proposal Details</div>
@@ -288,7 +288,7 @@ function P1({ f, c, s, showSiteDetails }: { f: QuoteForm; c: Calc; s: AppSetting
               </div>
             ))}
           </div>
-          {/* <div style={{ background: GRAY, borderRadius: 8, padding: "12px 14px" }}>
+          <div style={{ background: GRAY, borderRadius: 8, padding: "12px 14px" }}>
             <div style={{ fontSize: FONT_S, color: "#555", fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 8 }}>Site Details</div>
             {[["Roof Type", f.roofType], ["Floors", f.floors], ["Shading", f.shadow], ["Contact", f.contactPhone]].map(([k, v]) => (
               <div key={k} style={{ display: "flex", justifyContent: "space-between", fontSize: FONT, paddingBottom: 5, borderBottom: "1px solid #e5e7eb", marginBottom: 5 }}>
@@ -296,7 +296,7 @@ function P1({ f, c, s, showSiteDetails }: { f: QuoteForm; c: Calc; s: AppSetting
                 <span style={{ fontWeight: 600, color: NAVY }}>{v || "—"}</span>
               </div>
             ))}
-          </div> */}
+          </div>
         </div>
       ) : (
         <div style={{ background: GRAY, borderRadius: 8, padding: "12px 14px", marginTop: 10 }}>
@@ -308,7 +308,18 @@ function P1({ f, c, s, showSiteDetails }: { f: QuoteForm; c: Calc; s: AppSetting
             </div>
           ))}
         </div>
-      )}
+      )} */}
+
+      {/* Proposal Details */}
+        <div style={{ background: GRAY, borderRadius: 8, padding: "12px 14px", marginTop: 10 }}>
+          <div style={{ fontSize: FONT_S, color: "#555", fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 8 }}>Proposal Details</div>
+          {[["Proposal No.", f.proposalNo], ["Date", fmtDate(f.date)], ["Valid Until", fmtDate(f.validUntil)]].map(([k, v]) => (
+            <div key={k} style={{ display: "flex", justifyContent: "space-between", fontSize: FONT, paddingBottom: 5, borderBottom: "1px solid #e5e7eb", marginBottom: 5 }}>
+              <span style={{ color: "#555" }}>{k}</span>
+              <span style={{ fontWeight: 600, color: NAVY }}>{v}</span>
+            </div>
+          ))}
+        </div>
 
       {/* Why Solar strip */}
       <div style={{ background: NAVY, borderRadius: 8, padding: "14px 16px" }}>
