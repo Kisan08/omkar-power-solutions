@@ -1002,7 +1002,7 @@ function QuotePageInner() {
             <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
               <span className="w-1.5 h-4 rounded bg-amber-500 inline-block" />Proposal Options
             </h2>
-            <div className="flex items-center justify-between mb-3">
+            {/* <div className="flex items-center justify-between mb-3">
               <div>
                 <p className="text-sm font-medium text-gray-700">Show Site Details in PDF</p>
                 <p className="text-xs text-gray-400 mt-0.5">Roof type, floors, shading on cover page</p>
@@ -1011,7 +1011,7 @@ function QuotePageInner() {
                 className={`w-12 h-6 rounded-full transition-all relative ${showSiteDetails ? 'bg-blue-600' : 'bg-gray-200'}`}>
                 <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${showSiteDetails ? 'left-7' : 'left-1'}`} />
               </button>
-            </div>
+            </div> */}
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-700">Show PDF Preview</p>
