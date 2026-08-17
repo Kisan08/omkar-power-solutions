@@ -1007,7 +1007,7 @@ function QuotePageInner() {
                 <p className="text-sm font-medium text-gray-700">Show Site Details in PDF</p>
                 <p className="text-xs text-gray-400 mt-0.5">Roof type, floors, shading on cover page</p>
               </div>
-              <button onClick={() => setShowSiteDetails(p => !p)}
+              <button onClick={() => setShowSiteDetails(p => p)}
                 className={`w-12 h-6 rounded-full transition-all relative ${showSiteDetails ? 'bg-blue-600' : 'bg-gray-200'}`}>
                 <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${showSiteDetails ? 'left-7' : 'left-1'}`} />
               </button>
